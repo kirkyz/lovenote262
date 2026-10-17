@@ -1,5 +1,5 @@
 /*
- * This file is part of the Meteor Client distribution (https://github.com/MeteorDevelopment/meteor-client).
+ * This file is part of the Meteor Client distribution (https://github.com/MeteorDevelopment/lovenote262).
  * Copyright (c) Meteor Development.
  */
 
@@ -69,7 +69,7 @@ public class NotebotSongsScreen extends WindowScreen {
                 }
             });
         } catch (IOException _) {
-            table.add(theme.label("Missing meteor-client/notebot folder.")).expandCellX();
+            table.add(theme.label("Missing lovenote262/notebot folder.")).expandCellX();
             table.row();
         }
 

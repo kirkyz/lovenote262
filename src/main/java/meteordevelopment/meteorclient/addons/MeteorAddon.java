@@ -1,5 +1,5 @@
 /*
- * This file is part of the Meteor Client distribution (https://github.com/MeteorDevelopment/meteor-client).
+ * This file is part of the Meteor Client distribution (https://github.com/MeteorDevelopment/lovenote262).
  * Copyright (c) Meteor Development.
  */
 
@@ -14,7 +14,7 @@ public abstract class MeteorAddon {
     /** This field is automatically assigned from fabric.mod.json file. */
     public String[] authors;
 
-    /** This field is automatically assigned from the meteor-client:color property in fabric.mod.json file. */
+    /** This field is automatically assigned from the lovenote262:color property in fabric.mod.json file. */
     public final Color color = new Color(255, 255, 255);
 
     public abstract void onInitialize();

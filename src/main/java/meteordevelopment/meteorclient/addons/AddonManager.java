@@ -1,5 +1,5 @@
 /*
- * This file is part of the Meteor Client distribution (https://github.com/MeteorDevelopment/meteor-client).
+ * This file is part of the Meteor Client distribution (https://github.com/MeteorDevelopment/lovenote262).
  * Copyright (c) Meteor Development.
  */
 
@@ -36,7 +36,7 @@ public class AddonManager {
 
                 @Override
                 public GithubRepo getRepo() {
-                    return new GithubRepo("MeteorDevelopment", "meteor-client");
+                    return new GithubRepo("MeteorDevelopment", "lovenote262");
                 }
 
                 @Override

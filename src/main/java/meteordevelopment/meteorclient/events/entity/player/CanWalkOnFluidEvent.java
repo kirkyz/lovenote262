@@ -1,5 +1,5 @@
 /*
- * This file is part of the Meteor Client distribution (https://github.com/MeteorDevelopment/meteor-client).
+ * This file is part of the Meteor Client distribution (https://github.com/MeteorDevelopment/lovenote262).
  * Copyright (c) Meteor Development.
  */
 
@@ -17,7 +17,7 @@ import net.minecraft.world.level.material.FluidState;
  * calculates whether there is enough space to fit your bounding box if you change into that pose. This method ends up
  * calling {@link LivingEntity#canStandOnFluid(FluidState)}, causing this event to fire
  * again and leading to a stack overflow crash. Introduced in
- * <a href="https://github.com/MeteorDevelopment/meteor-client/pull/5449">this pull request</a>
+ * <a href="https://github.com/MeteorDevelopment/lovenote262/pull/5449">this pull request</a>
  */
 public class CanWalkOnFluidEvent {
     private static final CanWalkOnFluidEvent INSTANCE = new CanWalkOnFluidEvent();

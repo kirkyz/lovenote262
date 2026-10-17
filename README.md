@@ -1,6 +1,6 @@
 
 <p align="center">
-<img src="https://meteorclient.com/icon.png" alt="meteor-client-logo" width="15%"/>
+<img src="https://meteorclient.com/icon.png" alt="lovenote262-logo" width="15%"/>
 </p>
 
 <h1 align="center">Meteor</h1>
@@ -9,12 +9,12 @@
 <div align="center">
     <a href="https://discord.gg/bBGQZvd"><img src="https://img.shields.io/discord/689197705683140636?logo=discord" alt="Discord"/></a>
     <br>
-    <img src="https://img.shields.io/github/last-commit/MeteorDevelopment/meteor-client" alt="GitHub last commit"/>
-    <img src="https://img.shields.io/github/commit-activity/w/MeteorDevelopment/meteor-client" alt="GitHub commit activity"/>
-    <img src="https://img.shields.io/github/contributors/MeteorDevelopment/meteor-client" alt="GitHub contributors"/>
+    <img src="https://img.shields.io/github/last-commit/MeteorDevelopment/lovenote262" alt="GitHub last commit"/>
+    <img src="https://img.shields.io/github/commit-activity/w/MeteorDevelopment/lovenote262" alt="GitHub commit activity"/>
+    <img src="https://img.shields.io/github/contributors/MeteorDevelopment/lovenote262" alt="GitHub contributors"/>
     <br>
-    <img src="https://img.shields.io/github/languages/code-size/MeteorDevelopment/meteor-client" alt="GitHub code size in bytes"/>
-    <img src="https://img.shields.io/endpoint?url=https://ghloc.vercel.app/api/MeteorDevelopment/meteor-client/badge?filter=.java$&label=lines%20of%20code&color=blue" alt="GitHub lines of code"/>
+    <img src="https://img.shields.io/github/languages/code-size/MeteorDevelopment/lovenote262" alt="GitHub code size in bytes"/>
+    <img src="https://img.shields.io/endpoint?url=https://ghloc.vercel.app/api/MeteorDevelopment/lovenote262/badge?filter=.java$&label=lines%20of%20code&color=blue" alt="GitHub lines of code"/>
 </div>
 
 ## Usage
@@ -36,7 +36,7 @@ We will review and help with all reasonable pull requests as long as the guideli
 - If you need help, check out the [Google Java Style Guide](https://google.github.io/styleguide/javaguide.html) for a reference.
 
 ## Bugs and Suggestions
-Bug reports and suggestions should be made in this repo's [issue tracker](https://github.com/MeteorDevelopment/meteor-client/issues) using the templates provided.  
+Bug reports and suggestions should be made in this repo's [issue tracker](https://github.com/MeteorDevelopment/lovenote262/issues) using the templates provided.  
 Please provide as much information as you can to best help us understand your issue and give a better chance of it being resolved.
 
 ## Donations

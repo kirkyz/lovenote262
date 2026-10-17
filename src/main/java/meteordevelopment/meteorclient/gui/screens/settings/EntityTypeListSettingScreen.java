@@ -1,5 +1,5 @@
 /*
- * This file is part of the Meteor Client distribution (https://github.com/MeteorDevelopment/meteor-client).
+ * This file is part of the Meteor Client distribution (https://github.com/MeteorDevelopment/lovenote262).
  * Copyright (c) Meteor Development.
  */
 
@@ -249,7 +249,7 @@ public class EntityTypeListSettingScreen extends WindowScreen {
         if (stack != null) table.add(theme.item(stack));
         else {
             if (EMPTY_SPAWN_EGG_TEXTURE == null) {
-                EMPTY_SPAWN_EGG_TEXTURE = Texture.readResource("/assets/meteor-client/textures/empty_spawn_egg.png", false, FilterMode.NEAREST);
+                EMPTY_SPAWN_EGG_TEXTURE = Texture.readResource("/assets/lovenote262/textures/empty_spawn_egg.png", false, FilterMode.NEAREST);
             }
 
             table.add(theme.texture(32, 32, 0, EMPTY_SPAWN_EGG_TEXTURE));
