@@ -237,7 +237,7 @@ public class LovenoteGuiTheme extends MeteorGuiTheme {
 
     public Color accentAt(double offset) {
         if (!gradients.get()) return accentColor.get();
-        return sample(phase() + offset);
+        return sample((float) (phase() + offset));
     }
 
     // ---------------------------------------------------------------- widgets
