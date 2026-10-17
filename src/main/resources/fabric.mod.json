@@ -3,14 +3,10 @@
   "name": "lovenote",
   "id": "lovenote262",
   "version": "${version}",
-  "description": "Based utility mod.",
-  "authors": [
-    "MineGame159",
-    "squidoodly",
-    "seasnail"
-  ],
+  "description": "lovenote - a frosted-glass utility client.",
+  "authors": [],
   "contact": {
-    "homepage": "https://meteorclient.com",
+    "homepage": "https://github.com/kirkyz/lovenote262",
     "issues": "https://github.com/MeteorDevelopment/lovenote262/issues",
     "sources": "https://github.com/MeteorDevelopment/lovenote262",
     "discord": "https://meteorclient.com/discord"
@@ -37,7 +33,7 @@
   "accessWidener": "lovenote262.classtweaker",
   "custom": {
     "lovenote262:build_number": "${build_number}",
-    "lovenote262:color": "145,61,226",
+    "lovenote262:color": "255,122,200",
     "lovenote262:commit": "${commit}",
     "modmenu": {
       "links": {

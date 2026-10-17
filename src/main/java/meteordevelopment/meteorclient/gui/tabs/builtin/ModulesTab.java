@@ -23,6 +23,6 @@ public class ModulesTab extends Tab {
 
     @Override
     public boolean isScreen(Screen screen) {
-        return GuiThemes.get().isModulesScreen(screen);
+        return GuiThemes.get().isLovenoteModulesScreen(screen);
     }
 }

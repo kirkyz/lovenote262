@@ -14,6 +14,8 @@ import meteordevelopment.meteorclient.gui.utils.Cell;
 import meteordevelopment.meteorclient.gui.widgets.WRoot;
 import meteordevelopment.meteorclient.gui.widgets.WWidget;
 import meteordevelopment.meteorclient.gui.widgets.containers.WContainer;
+import meteordevelopment.meteorclient.gui.widgets.containers.WHorizontalList;
+import meteordevelopment.meteorclient.gui.widgets.containers.WVerticalList;
 import meteordevelopment.meteorclient.gui.widgets.input.WTextBox;
 import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.meteorclient.utils.misc.CursorStyle;
@@ -49,6 +51,10 @@ public abstract class WidgetScreen extends Screen {
     private final WContainer root;
 
     protected final GuiTheme theme;
+
+    public WHorizontalList header;
+    public WVerticalList body;
+    public WHorizontalList footer;
 
     public boolean locked, lockedAllowClose;
     private boolean closed;
@@ -103,14 +109,23 @@ public abstract class WidgetScreen extends Screen {
 
         if (firstInit) {
             firstInit = false;
+            buildLayout();
             initWidgets();
         }
+    }
+
+    private void buildLayout() {
+        WVerticalList column = add(theme.verticalList()).expandX().expandWidgetY().widget();
+        header = column.add(theme.horizontalList()).expandX().widget();
+        body = column.add(theme.verticalList()).expandX().expandWidgetY().widget();
+        footer = column.add(theme.horizontalList()).expandX().widget();
     }
 
     public abstract void initWidgets();
 
     public void reload() {
         clear();
+        buildLayout();
         initWidgets();
     }
 

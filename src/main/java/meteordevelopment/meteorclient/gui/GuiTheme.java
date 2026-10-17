@@ -387,4 +387,8 @@ public abstract class GuiTheme implements ISerializable<GuiTheme> {
 
         return this;
     }
+
+    public boolean isLovenoteModulesScreen(Screen screen) {
+        return false;
+    }
 }

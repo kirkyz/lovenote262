@@ -175,7 +175,11 @@ public class MeteorGuiTheme extends GuiTheme {
     private final Setting<SettingColor> starscriptAccessedObjects = color(sgStarscript, "starscript-accessed-objects", "Color of accessed objects (before a dot) in Starscript code.", new SettingColor(152, 118, 170));
 
     public MeteorGuiTheme() {
-        super("Meteor");
+        this("Meteor");
+    }
+
+    protected MeteorGuiTheme(String name) {
+        super(name);
 
         settingsFactory = new DefaultSettingsWidgetFactory(this);
     }
@@ -409,6 +413,10 @@ public class MeteorGuiTheme extends GuiTheme {
             normal = color(group, name, "Color of " + name + ".", c1);
             hovered = color(group, "hovered-" + name, "Color of " + name + " when hovered.", c2);
             pressed = color(group, "pressed-" + name, "Color of " + name + " when pressed.", c3);
+        }
+
+        public void set(SettingColor normal, SettingColor hovered, SettingColor pressed) {
+            this.normal.set(normal); this.hovered.set(hovered); this.pressed.set(pressed);
         }
 
         public SettingColor get() {

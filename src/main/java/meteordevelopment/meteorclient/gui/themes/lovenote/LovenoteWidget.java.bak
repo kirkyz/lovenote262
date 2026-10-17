@@ -1,0 +1,64 @@
+package meteordevelopment.meteorclient.gui.themes.lovenote;
+
+import meteordevelopment.meteorclient.gui.renderer.GuiRenderer;
+import meteordevelopment.meteorclient.gui.themes.meteor.MeteorWidget;
+import meteordevelopment.meteorclient.gui.widgets.WWidget;
+import meteordevelopment.meteorclient.utils.render.color.Color;
+
+public interface LovenoteWidget extends MeteorWidget {
+    default LovenoteGuiTheme lovenote() {
+        return (LovenoteGuiTheme) getTheme();
+    }
+
+    default void renderBackground(GuiRenderer renderer, WWidget widget, Color color) {
+        roundedQuad(renderer, widget.x, widget.y, widget.width, widget.height, lovenote().radius(), color);
+    }
+
+    default void gradientQuad(GuiRenderer renderer, double x, double y, double w, double h, Color top, Color bottom) {
+        renderer.quad(x, y, w, h, top, top, bottom, bottom);
+    }
+
+    default void roundedQuad(GuiRenderer renderer, double x, double y, double w, double h, double r, Color color) {
+        if (r <= 0 || w < r * 2 || h < r * 2) {
+            renderer.quad(x, y, w, h, color);
+            return;
+        }
+
+        renderer.quad(x + r, y, w - r * 2, h, color);
+        renderer.quad(x, y + r, r, h - r * 2, color);
+        renderer.quad(x + w - r, y + r, r, h - r * 2, color);
+
+        corner(renderer, x + r, y + r, r, Math.PI, Math.PI * 1.5, color);
+        corner(renderer, x + w - r, y + r, r, Math.PI * 1.5, Math.PI * 2, color);
+        corner(renderer, x + w - r, y + h - r, r, 0, Math.PI * 0.5, color);
+        corner(renderer, x + r, y + h - r, r, Math.PI * 0.5, Math.PI, color);
+    }
+
+    private void corner(GuiRenderer renderer, double cx, double cy, double r, double a0, double a1, Color color) {
+        int segments = 5;
+        for (int i = 0; i < segments; i++) {
+            double t0 = a0 + (a1 - a0) * i / segments;
+            double t1 = a0 + (a1 - a0) * (i + 1) / segments;
+            renderer.triangle(
+                cx, cy,
+                cx + Math.cos(t0) * r, cy + Math.sin(t0) * r,
+                cx + Math.cos(t1) * r, cy + Math.sin(t1) * r,
+                color
+            );
+        }
+    }
+
+    /** Rounded on the top two corners only. */
+    default void roundedQuadTop(GuiRenderer renderer, double x, double y, double w, double h, double r, Color color) {
+        if (r <= 0 || w < r * 2 || h < r) {
+            renderer.quad(x, y, w, h, color);
+            return;
+        }
+
+        renderer.quad(x, y + r, w, h - r, color);
+        renderer.quad(x + r, y, w - r * 2, r, color);
+
+        corner(renderer, x + r, y + r, r, Math.PI, Math.PI * 1.5, color);
+        corner(renderer, x + w - r, y + r, r, Math.PI * 1.5, Math.PI * 2, color);
+    }
+}

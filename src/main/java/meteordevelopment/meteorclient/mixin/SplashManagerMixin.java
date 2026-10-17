@@ -42,7 +42,7 @@ public abstract class SplashManagerMixin {
             "Meteor on Crack!",
             "Star Meteor Client on GitHub!",
             "Based utility mod.",
-            "§6MineGame159 §fbased god",
+            "§6Kirky §fcerti 10 bag shotter",
             "§4meteorclient.com",
             "§4Meteor on Crack!",
             "§6Meteor on Crack!"
