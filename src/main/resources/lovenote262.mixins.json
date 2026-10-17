@@ -198,7 +198,11 @@
     "VulkanDeviceMixin",
     "WebBlockMixin",
     "WingsLayerMixin",
-    "WorldBorderMixin"
+    "WorldBorderMixin",
+    "LovenoteLevelRendererMixin",
+    "LovenoteSkyRendererMixin",
+    "LovenoteFogRendererMixin",
+    "LovenoteCloudRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -65,11 +65,12 @@ public class SkyShader extends Module {
 	public SkyShader() {
 		super("SkyShader", Category.RENDER);
 		describe("Custom sky, sun, stars, aurora and nebula.");
-	}
+	        enabled = true;
+}
 
 	private int top() {
 		return switch (preset.get()) {
-			case "Lovenote" -> Colors.darken(Colors.C3);
+			case "Lovenote" -> Colors.C3;
 			case "Sunset" -> 0xFF2B1B4D;
 			case "Dawn" -> 0xFF2A4A8A;
 			case "Night" -> 0xFF05060F;
@@ -171,33 +172,37 @@ public class SkyShader extends Module {
 		};
 	}
 
-	@Override
+	        public boolean active() {
+                return enabled && !preset.is("Off");
+        }
+
+@Override
 	public void onRender3D(WorldRenderContext ctx, PoseStack m) {
-		if (preset.is("Off")) return;
-		if (overworldOnly.get() && mc.level != null
-				&& mc.level.dimensionType().skybox() != DimensionType.Skybox.OVERWORLD) return;
+                if (preset.is("Off")) return;
+                if (overworldOnly.get() && mc.level != null
+                                && mc.level.dimensionType().skybox() != DimensionType.Skybox.OVERWORLD) return;
 
-		long now = System.currentTimeMillis();
-		float dt = Mth.clamp((now - lastFrame) / 1000f, 0f, 0.2f);
-		lastFrame = now;
+                long now = System.currentTimeMillis();
+                float dt = Mth.clamp((now - lastFrame) / 1000f, 0f, 0.2f);
+                lastFrame = now;
 
-		Camera camera = ctx.camera();
-		Matrix4f mat = m.last().pose();
-		double camX = camera.position().x, camY = camera.position().y, camZ = camera.position().z;
+                Camera camera = ctx.camera();
+                Matrix4f mat = m.last().pose();
+                double camX = camera.position().x, camY = camera.position().y, camZ = camera.position().z;
 
-		Fx.cameraBasis(camera);
-		Tex.ensure();
+                Fx.cameraBasis(camera);
+                Tex.ensure();
 
-		dome(mat, camX, camY, camZ);
-		if (starsOn()) stars(mat, camX, camY, camZ, ctx.tickDelta());
-		if (milkyWay.getF() > 0.01f) milkyWayBand(mat, camX, camY, camZ);
-		if (constellations.getF() > 0.01f) constellationLines(mat, camX, camY, camZ);
-		if (planets.getI() > 0) planetBodies(mat, camX, camY, camZ);
-		if (auroraOn()) aurora(mat, camX, camY, camZ, ctx.tickDelta());
-		if (celestial.get()) sunMoon(mat, camX, camY, camZ, ctx.tickDelta());
-		if (meteors.getF() > 0.01f) shootingStars(mat, camX, camY, camZ, dt);
-		if (haze.getF() > 0.01f) horizonHaze(mat, camX, camY, camZ);
-	}
+                dome(mat, camX, camY, camZ);
+                if (starsOn()) stars(mat, camX, camY, camZ, ctx.tickDelta());
+                if (milkyWay.getF() > 0.01f) milkyWayBand(mat, camX, camY, camZ);
+                if (constellations.getF() > 0.01f) constellationLines(mat, camX, camY, camZ);
+                if (planets.getI() > 0) planetBodies(mat, camX, camY, camZ);
+                if (auroraOn()) aurora(mat, camX, camY, camZ, ctx.tickDelta());
+                if (celestial.get()) sunMoon(mat, camX, camY, camZ, ctx.tickDelta());
+                if (meteors.getF() > 0.01f) shootingStars(mat, camX, camY, camZ, dt);
+                if (haze.getF() > 0.01f) horizonHaze(mat, camX, camY, camZ);
+        }
 
 	private int shade(float y, int zenith, int horizon, int nadir) {
 		float t = Mth.clamp(y / R, -1f, 1f);
