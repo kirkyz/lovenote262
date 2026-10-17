@@ -27,6 +27,7 @@ import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -40,18 +41,18 @@ public class LovenoteModulesScreen extends TabScreen {
     private static long sessionStart;
 
     private static final int K_NONE = -1, K_CARD = 0, K_SWITCH = 1, K_BOOL = 2, K_SLIDER = 3, K_MODE = 4,
-            K_PTOGGLE = 6, K_PCLOSE = 7, K_BIND = 8, K_ACCENT = 9, K_EDITOR = 10, K_CLOSE = 12;
+            K_PTOGGLE = 6, K_PCLOSE = 7, K_BIND = 8, K_ACCENT = 9, K_EDITOR = 10, K_CLOSE = 12, K_SEARCH = 13, K_MULTI = 5;
 
     private static final class Hit {
         int x, y, w, h, kind, idx;
-        Module module;
-        Setting<?> setting;
+        Row module;
+        Object setting;
     }
 
     private static final class Ripple { int x, y; long t; }
 
-    private final List<Category> cats = new ArrayList<>();
-    private final List<Module> allModules = new ArrayList<>();
+    private final List<com.lovenote.module.Category> cats = new ArrayList<>();
+    private final List<Row> allModules = new ArrayList<>();
     private final List<Hit> hits = new ArrayList<>();
     private final List<int[]> pageRects = new ArrayList<>();
     private final List<Ripple> ripples = new ArrayList<>();
@@ -65,7 +66,7 @@ public class LovenoteModulesScreen extends TabScreen {
     private int maxScroll, panelMax;
     private boolean closing, finishClose, animating;
     private long lastNano;
-    private Module selected, panelModule, listening;
+    private Row selected, panelModule, listening;
     private int dragWin, grabX, grabY;
     private boolean settingFields;
     private String tooltip;
@@ -80,11 +81,104 @@ public class LovenoteModulesScreen extends TabScreen {
         super(theme, Tabs.get().getFirst());
     }
 
+    private static final ItemStack[] RAIL_ICONS = {
+            new ItemStack(Items.NETHERITE_SWORD), new ItemStack(Items.FEATHER), new ItemStack(Items.LEATHER_BOOTS),
+            new ItemStack(Items.ENDER_EYE), new ItemStack(Items.SPYGLASS), new ItemStack(Items.PAPER),
+            new ItemStack(Items.REDSTONE), new ItemStack(Items.GOLD_INGOT), new ItemStack(Items.GOLDEN_APPLE),
+            new ItemStack(Items.JUKEBOX), new ItemStack(Items.PAINTING)
+    };
+
     private int pages() { return cats.size() + 2; }
     private boolean isSpecial(int p) { return p >= cats.size(); }
     private String pageLabel(int p) {
-        if (p < cats.size()) return cats.get(p).name;
+        if (p < cats.size()) return cats.get(p).label;
         return p == cats.size() ? "Spotify" : "Themes";
+    }
+
+    private interface Row {
+        String title();
+        String description();
+        int catIndex();
+        boolean active();
+        void toggle();
+        int key();
+        void setKey(int k);
+        List<Group> groups();
+    }
+
+    private record Group(String name, List<Object> settings) {}
+
+    private static final class LRow implements Row {
+        final com.lovenote.module.Module m;
+        final int cat;
+        LRow(com.lovenote.module.Module m, int cat) { this.m = m; this.cat = cat; }
+        public String title() { return m.name; }
+        public String description() { return m.description; }
+        public int catIndex() { return cat; }
+        public boolean active() { return m.enabled; }
+        public void toggle() { m.toggle(); }
+        public int key() { return m.key; }
+        public void setKey(int k) { m.key = k; }
+        public List<Group> groups() {
+            Map<String, List<Object>> by = new LinkedHashMap<>();
+            for (com.lovenote.setting.Setting st : m.settings) {
+                String g = st instanceof com.lovenote.setting.BoolSetting ? "Toggles"
+                        : st instanceof com.lovenote.setting.NumberSetting ? "Values"
+                        : st instanceof com.lovenote.setting.ModeSetting ? "Modes" : "Lists";
+                by.computeIfAbsent(g, k -> new ArrayList<>()).add(st);
+            }
+            List<Group> out = new ArrayList<>();
+            for (Map.Entry<String, List<Object>> e : by.entrySet()) out.add(new Group(e.getKey(), e.getValue()));
+            return out;
+        }
+    }
+
+    private static final class MRow implements Row {
+        final Module m;
+        final int cat;
+        MRow(Module m, int cat) { this.m = m; this.cat = cat; }
+        public String title() { return m.title; }
+        public String description() { return m.description; }
+        public int catIndex() { return cat; }
+        public boolean active() { return m.isActive(); }
+        public void toggle() { m.toggle(); }
+        public int key() { return m.keybind.getValue(); }
+        public void setKey(int k) { m.keybind.set(true, k, 0); }
+        public List<Group> groups() {
+            List<Group> out = new ArrayList<>();
+            for (SettingGroup g : m.settings) {
+                List<Object> list = new ArrayList<>();
+                for (Setting<?> st : g) list.add(st);
+                out.add(new Group(g.name, list));
+            }
+            return out;
+        }
+    }
+
+    private int catIndex(com.lovenote.module.Category c) {
+        for (int i = 0; i < cats.size(); i++) if (cats.get(i) == c) return i;
+        return -1;
+    }
+
+    private static com.lovenote.module.Category mapCat(String name) {
+        for (com.lovenote.module.Category c : com.lovenote.module.Category.values()) {
+            if (c.label.equalsIgnoreCase(name) || c.name().equalsIgnoreCase(name)) return c;
+        }
+        return name.equalsIgnoreCase("world")
+                ? com.lovenote.module.Category.RENDER
+                : com.lovenote.module.Category.MISC;
+    }
+
+    private void buildRows() {
+        allModules.clear();
+        for (com.lovenote.module.Module m : com.lovenote.Lovenote.modules.all()) {
+            int i = catIndex(m.category);
+            if (i >= 0) allModules.add(new LRow(m, i));
+        }
+        for (Module m : Modules.get().getAll()) {
+            int i = catIndex(mapCat(m.category.name));
+            if (i >= 0) allModules.add(new MRow(m, i));
+        }
     }
 
     @Override
@@ -92,9 +186,11 @@ public class LovenoteModulesScreen extends TabScreen {
         if (sessionStart == 0L) sessionStart = System.currentTimeMillis();
 
         cats.clear();
-        for (Category c : Modules.loopCategories()) cats.add(c);
-        allModules.clear();
-        allModules.addAll(Modules.get().getAll());
+        for (com.lovenote.module.Category c : com.lovenote.module.Category.values()) {
+            if (c == com.lovenote.module.Category.SPOTIFY || c == com.lovenote.module.Category.THEMES) continue;
+            cats.add(c);
+        }
+        buildRows();
 
         readLayout();
         vw = Math.max(160, Math.round(width / gs));
@@ -186,7 +282,7 @@ public class LovenoteModulesScreen extends TabScreen {
         return v;
     }
 
-    private void addHit(int x, int y, int w, int h, int kind, Module m, Setting<?> s, int idx) {
+    private void addHit(int x, int y, int w, int h, int kind, Row m, Object s, int idx) {
         Hit hit = new Hit();
         hit.x = x; hit.y = y; hit.w = w; hit.h = h; hit.kind = kind; hit.module = m; hit.setting = s; hit.idx = idx;
         hits.add(hit);
@@ -230,10 +326,16 @@ public class LovenoteModulesScreen extends TabScreen {
         return rows * 15 + (rows - 1) * 3;
     }
 
-    private int rowH(Setting<?> s, int w) {
-        if (s instanceof BoolSetting || s instanceof KeybindSetting) return 20;
-        if (s instanceof IntSetting || s instanceof DoubleSetting) return 29;
-        if (s instanceof EnumSetting<?> e) return 14 + chipsHeight(enumNames(e), w) + 7;
+    private int rowH(Object s, int w) {
+        if (s instanceof com.lovenote.setting.BoolSetting) return 20;
+        if (s instanceof com.lovenote.setting.NumberSetting) return 29;
+        if (s instanceof com.lovenote.setting.ModeSetting e) return 14 + chipsHeight(e.modes, w) + 7;
+        if (s instanceof com.lovenote.setting.MultiSetting m) return 14 + chipsHeight(m.names, w) + 7;
+        if (s instanceof Setting<?> ss) {
+            if (ss instanceof BoolSetting || ss instanceof KeybindSetting) return 20;
+            if (ss instanceof IntSetting || ss instanceof DoubleSetting) return 29;
+            if (ss instanceof EnumSetting<?> e) return 14 + chipsHeight(enumNames(e), w) + 7;
+        }
         return 0;
     }
 
@@ -252,8 +354,35 @@ public class LovenoteModulesScreen extends TabScreen {
     @SuppressWarnings("unchecked")
     private static void setEnum(EnumSetting<?> e, Object v) { ((Setting<Object>) e).set(v); }
 
-    private int drawSetting(GuiGraphicsExtractor ctx, Module owner, Setting<?> s, int x, int y, int w) {
-        if (!s.isVisible()) return 0;
+    private int drawSetting(GuiGraphicsExtractor ctx, Row owner, Object s, int x, int y, int w) {
+        if (s instanceof com.lovenote.setting.BoolSetting b) {
+            float t = ease(b.hashCode() + "b", b.get() ? 1f : 0f, 150);
+            txt(ctx, b.name, x, y + 4, LovenotePalette.lerp(LovenotePalette.dim(), LovenotePalette.text(), t));
+            drawSwitch(ctx, x + w - 24, y + 4, t);
+            addHit(x - 2, y, w + 4, 18, K_BOOL, owner, b, 0);
+            return 20;
+        }
+        if (s instanceof com.lovenote.setting.NumberSetting n) {
+            txt(ctx, n.name, x, y + 2, LovenotePalette.dim());
+            String v = n.step >= 1 ? String.valueOf(n.getI()) : String.format("%.2f", n.get());
+            txt(ctx, v, x + w - font.width(v), y + 2, LovenotePalette.faint());
+            drawSlider(ctx, x, y, w, (float) ((n.get() - n.min) / (n.max - n.min)));
+            addHit(x, y + 11, w, 13, K_SLIDER, owner, n, 0);
+            return 29;
+        }
+        if (s instanceof com.lovenote.setting.ModeSetting e) {
+            txt(ctx, e.name, x, y + 2, LovenotePalette.dim());
+            chips(ctx, e.modes, e.index(), x, y + 14, w, K_MODE, owner, e);
+            return 14 + chipsHeight(e.modes, w) + 7;
+        }
+        if (s instanceof com.lovenote.setting.MultiSetting ms) {
+            txt(ctx, ms.name, x, y + 2, LovenotePalette.dim());
+            chipsMulti(ctx, ms, x, y + 14, w, owner);
+            return 14 + chipsHeight(ms.names, w) + 7;
+        }
+        if (!(s instanceof Setting<?> st)) return 0;
+        Setting<?> s2 = st;
+        if (!s2.isVisible()) return 0;
         if (s instanceof BoolSetting b) {
             float t = ease(b.hashCode() + "b", b.get() ? 1f : 0f, 150);
             txt(ctx, b.name, x, y + 4, LovenotePalette.lerp(LovenotePalette.dim(), LovenotePalette.text(), t));
@@ -299,7 +428,21 @@ public class LovenoteModulesScreen extends TabScreen {
         rr(ctx, Mth.clamp(fx - 3, x, x + w - 6), sy - 3, 6, 9, 3, 0xFFFFFFFF);
     }
 
-    private void chips(GuiGraphicsExtractor ctx, String[] names, int active, int x, int y, int w, int kind, Module owner, Setting<?> set) {
+    private void chipsMulti(GuiGraphicsExtractor ctx, com.lovenote.setting.MultiSetting ms, int x, int y, int w, Row owner) {
+        int cx = 0, cy = 0;
+        for (int i = 0; i < ms.names.length; i++) {
+            int cw = font.width(ms.names[i]) + 12;
+            if (cx + cw > w && cx > 0) { cx = 0; cy += 18; }
+            int rx = x + cx, ry = y + cy;
+            float t = ease(ms.hashCode() + ":" + i, ms.get(i) ? 1f : 0f, 150);
+            rr(ctx, rx, ry, cw, 15, 3, LovenotePalette.lerp(LovenotePalette.chip(), LovenotePalette.C2, t));
+            txt(ctx, ms.names[i], rx + 6, ry + 4, LovenotePalette.lerp(LovenotePalette.dim(), LovenotePalette.text(), t));
+            addHit(rx, ry, cw, 15, K_MULTI, owner, ms, i);
+            cx += cw + 4;
+        }
+    }
+
+    private void chips(GuiGraphicsExtractor ctx, String[] names, int active, int x, int y, int w, int kind, Row owner, Object set) {
         int cx = 0, cy = 0;
         for (int i = 0; i < names.length; i++) {
             int cw = font.width(names[i]) + 12;
@@ -314,12 +457,12 @@ public class LovenoteModulesScreen extends TabScreen {
         }
     }
 
-    private int panelTotal(Module m, int w) {
+    private int panelTotal(Row m, int w) {
         int total = 0;
-        for (SettingGroup g : m.settings) {
+        for (Group g : m.groups()) {
             boolean any = false;
             int sum = 0;
-            for (Setting<?> s : g) { int h = rowH(s, w); if (h > 0) { any = true; sum += h; } }
+            for (Object s : g.settings()) { int h = rowH(s, w); if (h > 0) { any = true; sum += h; } }
             if (any) total += 18 + sum;
         }
         return total;
@@ -398,13 +541,20 @@ public class LovenoteModulesScreen extends TabScreen {
         drawRail(ctx, mx, my, corner);
         drawRipples(ctx);
 
-        if (listening != null) txtS(ctx, "press a key to bind " + listening.title + "   (esc = clear)", wx + winW / 2 - 100, wy + winH + 8, 0xFFFFD27A);
+        if (listening != null) txtS(ctx, "press a key to bind " + listening.title() + "   (esc = clear)", wx + winW / 2 - 100, wy + winH + 8, 0xFFFFD27A);
         if (tooltip != null) {
             int tw = font.width(tooltip) + 10;
             rr(ctx, mx + 10, my + 12, tw, 16, 5, LovenotePalette.alpha(0x0A0A10, 240));
             txt(ctx, tooltip, mx + 15, my + 16, LovenotePalette.text());
         }
         ms.popMatrix();
+    }
+
+    private void addRipple(int x, int y) {
+        if (ripples.size() > 24) ripples.remove(0);
+        Ripple r = new Ripple();
+        r.x = x; r.y = y; r.t = System.currentTimeMillis();
+        ripples.add(r);
     }
 
     private void drawRipples(GuiGraphicsExtractor ctx) {
@@ -453,6 +603,7 @@ public class LovenoteModulesScreen extends TabScreen {
         circle(ctx, cx + 11, wy + 18, 4, LovenotePalette.faint());
         circle(ctx, cx + 11, wy + 18, 2, LovenotePalette.alpha(LovenotePalette.bg(), 255));
         fill(ctx, cx + 14, wy + 21, cx + 17, wy + 22, LovenotePalette.faint());
+        addHit(cx, wy + 9, sw, 18, K_SEARCH, null, null, 0);
         if (searchText.isEmpty() && !searchFocused) {
             txt(ctx, "Search...", cx + 22, wy + 14, LovenotePalette.faint());
         } else {
@@ -499,7 +650,7 @@ public class LovenoteModulesScreen extends TabScreen {
         long secs = (System.currentTimeMillis() - sessionStart) / 1000L;
         txt(ctx, String.format("%02d:%02d", secs / 60, secs % 60), cx + font.width("lovenote") + 6, y, LovenotePalette.alpha(LovenotePalette.faint(), 140));
         int enabled = 0;
-        for (Module m : allModules) if (m.isActive()) enabled++;
+        for (Row m : allModules) if (m.active()) enabled++;
         String[] seg = { enabled + " on", mc.getFps() + " fps", "ctrl+scroll" };
         int total = 0;
         for (String t : seg) total += font.width(t) + 10;
@@ -508,19 +659,18 @@ public class LovenoteModulesScreen extends TabScreen {
         for (String t : seg) { if (x > cx + 80) txt(ctx, t, x, y, LovenotePalette.alpha(LovenotePalette.faint(), 160)); x += font.width(t) + 10; }
     }
 
-    private List<Module> visibleModules(String q) {
-        List<Module> out = new ArrayList<>();
-        for (Module m : allModules) {
-            if (m.isActive() && false) continue;
-            if (!q.isEmpty()) { if (m.title.toLowerCase().contains(q) || m.description.toLowerCase().contains(q)) out.add(m); }
-            else if (page < cats.size() && m.category == cats.get(page)) out.add(m);
+    private List<Row> visibleModules(String q) {
+        List<Row> out = new ArrayList<>();
+        for (Row m : allModules) {
+            if (!q.isEmpty()) { if (m.title().toLowerCase().contains(q) || m.description().toLowerCase().contains(q)) out.add(m); }
+            else if (page < cats.size() && m.catIndex() == page) out.add(m);
         }
-        out.sort((x, y) -> x.title.compareToIgnoreCase(y.title));
+        out.sort((x, y) -> x.title().compareToIgnoreCase(y.title()));
         return out;
     }
 
     private void renderCards(GuiGraphicsExtractor ctx, int mx, int my, int cx, int top, int cw, int bottom, String q, boolean interactive, int corner) {
-        List<Module> list = visibleModules(q);
+        List<Row> list = visibleModules(q);
         int ncols = Mth.clamp(LovenoteMenuConfig.columns, 1, 3);
         boolean compact = LovenoteMenuConfig.compact;
         int gap = 7;
@@ -536,7 +686,7 @@ public class LovenoteModulesScreen extends TabScreen {
         int cr = Math.max(2, corner - 2);
         ctx.enableScissor(cx - 2, top - 2, cx + cw + 4, bottom);
         for (int i = 0; i < list.size(); i++) {
-            Module m = list.get(i);
+            Row m = list.get(i);
             int col = i % ncols;
             int x = cx + col * (cardW + gap);
             int y = top + (i / ncols) * (cardH + gap) - Math.round(scrollShown);
@@ -545,9 +695,9 @@ public class LovenoteModulesScreen extends TabScreen {
             float st = stagger(i);
             int sy = y + (int) ((1f - st) * 10f);
             boolean hov = interactive && mx >= x && mx < x + cardW && my >= sy && my < sy + cardH && my >= top && my <= bottom;
-            float hv = ease(m.title + ":h", hov ? 1f : 0f, 130);
-            float on = ease(m.title + ":s", m.isActive() ? 1f : 0f, 170);
-            float sel = ease(m.title + ":sel", selected == m ? 1f : 0f, 170);
+            float hv = ease(m.title() + ":h", hov ? 1f : 0f, 130);
+            float on = ease(m.title() + ":s", m.active() ? 1f : 0f, 170);
+            float sel = ease(m.title() + ":sel", selected == m ? 1f : 0f, 170);
 
             int ly = sy - (int) (hv * LovenoteMenuConfig.hoverLift);
             if (sel > 0.02f) rr(ctx, x - 1, ly - 1, cardW + 2, cardH + 2, cr + 1, LovenotePalette.alpha(LovenotePalette.C2, (int) (150 * sel)));
@@ -565,11 +715,11 @@ public class LovenoteModulesScreen extends TabScreen {
 
             circle(ctx, x + 13, ly + (compact ? 15 : 13), 2, LovenotePalette.lerp(LovenotePalette.faint(), LovenotePalette.wave(0f), on));
             int textW = cardW - 15 - 44;
-            String name = trim(m.title, textW);
+            String name = trim(m.title(), textW);
             txt(ctx, name, x + 20, ly + (compact ? 11 : 9), LovenotePalette.lerp(LovenotePalette.dim(), LovenotePalette.text(), Math.max(on, hv * 0.8f)));
-            if (!compact && LovenoteMenuConfig.descriptions) txt(ctx, trim(m.description, textW), x + 20, ly + 24, LovenotePalette.faint());
+            if (!compact && LovenoteMenuConfig.descriptions) txt(ctx, trim(m.description(), textW), x + 20, ly + 24, LovenotePalette.faint());
             drawSwitch(ctx, x + cardW - 33, ly + (compact ? 10 : 16), on);
-            int k = m.keybind.getValue();
+            int k = m.key();
             if (k != -1 && !compact) {
                 String kb = "[" + keyName(k) + "]";
                 txt(ctx, kb, x + cardW - 38 - font.width(kb), ly + 26, LovenotePalette.alpha(LovenotePalette.faint(), 150));
@@ -578,7 +728,7 @@ public class LovenoteModulesScreen extends TabScreen {
 
             addHit(x, ly, cardW, cardH, K_CARD, m, null, 0);
             addHit(x + cardW - 37, ly + (compact ? 4 : 10), 34, 22, K_SWITCH, m, null, 0);
-            if (hov && LovenoteMenuConfig.tooltips && !name.equals(m.title)) tooltip = m.title;
+            if (hov && LovenoteMenuConfig.tooltips && !name.equals(m.title())) tooltip = m.title();
         }
         ctx.disableScissor();
         scrollbar(ctx, cx + cw + 6, top, bottom, scrollShown, maxScroll);
@@ -627,16 +777,17 @@ public class LovenoteModulesScreen extends TabScreen {
             boolean hov = hover && mx >= sx + 5 && mx < sx + sbw - 5 && my >= ry && my < ry + rowH;
             float hv = ease("pg" + i, hov ? 1f : 0f, 120);
             if (hv > 0.02f && i != page) rr(ctx, sx + 5, ry, sbw - 10, rowH, 6, LovenotePalette.alpha(LovenotePalette.C2, (int) (26 * hv)));
-            ItemStack icon = i < cats.size() ? cats.get(i).icon.get() : (i == cats.size() ? new ItemStack(Items.JUKEBOX) : new ItemStack(Items.PAINTING));
-            ctx.item(icon, sx + 13, ry + (rowH - 16) / 2);
-            if (sb > 0.05f) txt(ctx, pageLabel(i), sx + 42, ry + (rowH - 8) / 2,
+            float slide = (1f - Mth.clamp((tabMs - i * 12f) / 220f, 0f, 1f)) * 10f;
+            ItemStack icon = i < RAIL_ICONS.length ? RAIL_ICONS[i] : new ItemStack(Items.PAINTING);
+            ctx.item(icon, sx + 13 + (int) slide, ry + (rowH - 16) / 2);
+            if (sb > 0.05f) txt(ctx, pageLabel(i), sx + 42 + (int) slide, ry + (rowH - 8) / 2,
                     LovenotePalette.alpha(LovenotePalette.lerp(LovenotePalette.dim(), LovenotePalette.text(), Math.max(hv * 0.7f, i == page ? 1f : 0f)), (int) (255 * sb)));
             pageRects.add(new int[]{sx + 5, ry, sbw - 10, rowH, i});
         }
     }
 
     private void drawPanel(GuiGraphicsExtractor ctx, int mx, int my, float panelA, int corner) {
-        Module m = panelModule;
+        Row m = panelModule;
         float saved = ga;
         ga = saved * panelA;
 
@@ -650,10 +801,10 @@ public class LovenoteModulesScreen extends TabScreen {
         rr(ctx, px - 1, py - 1, PW + 2, PH + 2, corner + 1, LovenotePalette.alpha(LovenotePalette.C2, 70));
         rr(ctx, px, py, PW, PH, corner, LovenotePalette.alpha(LovenotePalette.card(), 0xF8));
 
-        txtS(ctx, m.title, px + 13, py + 10, LovenotePalette.text());
-        txt(ctx, trim(m.description, PW - 84), px + 13, py + 23, LovenotePalette.faint());
+        txtS(ctx, m.title(), px + 13, py + 10, LovenotePalette.text());
+        txt(ctx, trim(m.description(), PW - 84), px + 13, py + 23, LovenotePalette.faint());
 
-        float on = ease(m.title + ":s", m.isActive() ? 1f : 0f, 170);
+        float on = ease(m.title() + ":s", m.active() ? 1f : 0f, 170);
         drawSwitch(ctx, px + PW - 74, py + 12, on);
         addHit(px + PW - 77, py + 8, 28, 18, K_PTOGGLE, m, null, 0);
         circle(ctx, px + PW - 40, py + 17, 4, 0xFF3DD68C);
@@ -673,16 +824,16 @@ public class LovenoteModulesScreen extends TabScreen {
         ctx.enableScissor(px, top, px + PW, bottom);
         int y = top + 4 - Math.round(panelScrollShown);
         boolean first = true;
-        for (SettingGroup g : m.settings) {
+        for (Group g : m.groups()) {
             boolean any = false;
-            for (Setting<?> s : g) if (rowH(s, PW - 26) > 0) { any = true; break; }
+            for (Object s : g.settings()) if (rowH(s, PW - 26) > 0) { any = true; break; }
             if (!any) continue;
             if (!first) fill(ctx, px + 13, y - 2, px + PW - 13, y - 1, LovenotePalette.alpha(LovenotePalette.track(), 120));
             first = false;
             y += 4;
-            txt(ctx, g.name, px + 13, y, LovenotePalette.alpha(LovenotePalette.faint(), 190));
+            txt(ctx, g.name(), px + 13, y, LovenotePalette.alpha(LovenotePalette.faint(), 190));
             y += 14;
-            for (Setting<?> s : g) y += drawSetting(ctx, m, s, px + 13, y, PW - 26);
+            for (Object s : g.settings()) y += drawSetting(ctx, m, s, px + 13, y, PW - 26);
         }
         ctx.disableScissor();
         scrollbar(ctx, px + PW - 6, top, bottom, panelScrollShown, panelMax);
@@ -705,7 +856,7 @@ public class LovenoteModulesScreen extends TabScreen {
         double mx = click.x() / gs, my = click.y() / gs;
         int button = click.button();
 
-        if (listening != null) { listening.keybind.set(true, button == 1 ? -1 : GLFW.GLFW_MOUSE_BUTTON_LEFT, 0); listening = null; return true; }
+        if (listening != null) { listening.setKey(button == 1 ? -1 : GLFW.GLFW_MOUSE_BUTTON_LEFT); listening = null; return true; }
         if (button == 1 && selected != null) { selected = null; panelModule = null; return true; }
         if (button != 0 && button != 1) return super.mouseClicked(click, doubled);
 
@@ -713,7 +864,7 @@ public class LovenoteModulesScreen extends TabScreen {
 
         for (int[] r : pageRects) {
             if (mx >= r[0] && mx <= r[0] + r[2] && my >= r[1] && my <= r[1] + r[3]) {
-                page = r[4]; tabMs = 0; scrollTarget = 0; scrollShown = 0; pillY = -1f; searchText = "";
+                page = r[4]; tabMs = 0; scrollTarget = 0; scrollShown = 0; searchText = ""; addRipple((int) mx, (int) my);
                 return true;
             }
         }
@@ -725,17 +876,23 @@ public class LovenoteModulesScreen extends TabScreen {
             switch (hit.kind) {
                 case K_CARD -> { selected = hit.module; panelModule = hit.module; panelScrollTarget = 0; }
                 case K_SWITCH -> hit.module.toggle();
-                case K_BOOL -> ((BoolSetting) hit.setting).set(!((BoolSetting) hit.setting).get());
+                case K_BOOL -> {
+                    if (hit.setting instanceof BoolSetting b) b.set(!b.get());
+                    else if (hit.setting instanceof com.lovenote.setting.BoolSetting b) b.toggle();
+                }
+                case K_MULTI -> { if (hit.setting instanceof com.lovenote.setting.MultiSetting ms) ms.toggle(hit.idx); }
                 case K_SLIDER -> { dragWin = 3; setSlider(hit, mx); }
                 case K_MODE -> {
-                    EnumSetting<?> es = (EnumSetting<?>) hit.setting;
-                    Object[] vals = enumValues(es);
-                    if (hit.idx >= 0 && hit.idx < vals.length) setEnum(es, vals[hit.idx]);
+                    if (hit.setting instanceof EnumSetting<?> es) {
+                        Object[] vals = enumValues(es);
+                        if (hit.idx >= 0 && hit.idx < vals.length) setEnum(es, vals[hit.idx]);
+                    } else if (hit.setting instanceof com.lovenote.setting.ModeSetting ms) ms.setIndex(hit.idx);
                 }
                 case K_PTOGGLE -> hit.module.toggle();
                 case K_PCLOSE -> { selected = null; panelModule = null; }
                 case K_BIND -> { if (hit.module != null) listening = hit.module; }
                 case K_ACCENT -> applyAccent(hit.idx);
+                case K_SEARCH -> { searchFocused = true; return true; }
                 case K_CLOSE -> close();
                 default -> { }
             }
@@ -755,6 +912,7 @@ public class LovenoteModulesScreen extends TabScreen {
         double t = Mth.clamp((mx - h.x) / (double) h.w, 0.0, 1.0);
         if (h.setting instanceof IntSetting n) n.set((int) (n.min + t * (n.max - n.min)));
         else if (h.setting instanceof DoubleSetting n) n.set(n.min + t * (n.max - n.min));
+        else if (h.setting instanceof com.lovenote.setting.NumberSetting n) n.set(n.min + t * (n.max - n.min));
     }
 
     @Override
@@ -792,7 +950,7 @@ public class LovenoteModulesScreen extends TabScreen {
     @Override
     public boolean keyPressed(KeyEvent input) {
         int key = input.key();
-        if (listening != null) { listening.keybind.set(true, key == GLFW.GLFW_KEY_ESCAPE ? -1 : key, 0); listening = null; return true; }
+        if (listening != null) { listening.setKey(key == GLFW.GLFW_KEY_ESCAPE ? -1 : key); listening = null; return true; }
         if (searchFocused) {
             if (key == GLFW.GLFW_KEY_BACKSPACE) {
                 if (!searchText.isEmpty()) { searchText = searchText.substring(0, searchText.length() - 1); onSearch(); }

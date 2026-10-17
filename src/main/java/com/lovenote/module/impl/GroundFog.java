@@ -9,7 +9,7 @@ import com.lovenote.util.Colors;
 import com.lovenote.util.Fx;
 import com.lovenote.util.Tex;
 import com.lovenote.util.WorldRenderContext;
-import com.mojang.blaze3d.vertex.VertexConsumer;
+import meteordevelopment.meteorclient.renderer.MeshBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
@@ -55,7 +55,7 @@ public class GroundFog extends Module {
 		Fx.additive();
 		Fx.texture(Tex.SOFT);
 
-		VertexConsumer b = Fx.texQuads();
+		MeshBuilder b = Fx.texQuads();
 		for (int gx = 0; gx < N; gx++) {
 			for (int gz = 0; gz < N; gz++) {
 				float x0 = (float) (cx - R + gx * cell);

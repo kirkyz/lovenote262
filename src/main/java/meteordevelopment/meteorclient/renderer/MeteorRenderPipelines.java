@@ -87,6 +87,19 @@ public abstract class MeteorRenderPipelines {
         .build()
     );
 
+
+    public static final RenderPipeline WORLD_TEXTURED = add(new ExtendedRenderPipelineBuilder(MESH_UNIFORMS)
+        .withLocation(MeteorClient.identifier("pipeline/world_textured"))
+        .withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR).withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
+        .withVertexShader(MeteorClient.identifier("shaders/pos_tex_color.vert"))
+        .withFragmentShader(MeteorClient.identifier("shaders/pos_tex_color.frag"))
+        .withBindGroupLayout(BindGroupLayout.builder().withSampler("u_Texture").build())
+        .withDepthStencilState(new DepthStencilState(CompareOp.ALWAYS_PASS, false))
+        .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+        .withCull(false)
+        .build()
+    );
+
     // UI
 
     public static final RenderPipeline UI_COLORED = add(new ExtendedRenderPipelineBuilder(MESH_UNIFORMS)
