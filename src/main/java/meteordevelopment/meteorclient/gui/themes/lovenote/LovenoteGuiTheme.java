@@ -188,7 +188,7 @@ public class LovenoteGuiTheme extends MeteorGuiTheme {
     // ---------------------------------------------------------------- cards
 
     public Color cardTop(boolean hovered) {
-        return new SettingColor(255, 255, 255, hovered ? 24 : 14);
+        return new SettingColor(255, 255, 255, hovered ? 44 : 28);
     }
 
     public Color cardTopActive(boolean hovered) {
@@ -197,7 +197,7 @@ public class LovenoteGuiTheme extends MeteorGuiTheme {
     }
 
     public Color cardBottom() {
-        return new SettingColor(10, 10, 14, 145);
+        return new SettingColor(12, 12, 18, 190);
     }
 
     public Color glowColor() {

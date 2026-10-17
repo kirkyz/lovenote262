@@ -19,13 +19,14 @@ public class WLovenoteWindow extends WWindow implements LovenoteWidget {
 
     @Override
     protected void onRender(GuiRenderer renderer, double mouseX, double mouseY, double delta) {
-        if (expanded || animProgress > 0) {
-            LovenoteGuiTheme theme = lovenote();
-            double r = theme.windowRadius();
+        if (width <= 0 || height <= 0) return;
 
-            shadow(renderer, x, y, width, height, r, theme.shadowColor());
-            panel(renderer, x, y, width, height, theme.panelTop(), theme.panelBottom(), theme.hairline());
-        }
+        LovenoteGuiTheme theme = lovenote();
+        double r = theme.windowRadius();
+
+        shadow(renderer, x, y, width, height, r, theme.shadowColor());
+        panel(renderer, x, y, width, height, theme.panelTop(), theme.panelBottom(), theme.hairline());
+        edgeGradient(renderer, x + r, y, width - r * 2, theme.accentAt(0), theme.accentAt(0.6));
     }
 
     private class WLovenoteHeader extends WHeader {

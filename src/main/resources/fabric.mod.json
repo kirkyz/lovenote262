@@ -16,7 +16,8 @@
   "environment": "client",
   "entrypoints": {
     "client": [
-      "meteordevelopment.meteorclient.MeteorClient"
+      "meteordevelopment.meteorclient.MeteorClient",
+      "com.lovenote.Lovenote"
     ],
     "modmenu": [
       "meteordevelopment.meteorclient.modintegration.ModMenuIntegration"
