@@ -1,4 +1,4 @@
-package meteordevelopment.meteorclient.mixin.baritone;
+package meteordevelopment.meteorclient.mixin;
 
 import com.lovenote.util.MenuFx;
 import net.minecraft.client.gui.GuiGraphicsExtractor;

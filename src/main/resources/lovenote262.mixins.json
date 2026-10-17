@@ -205,7 +205,10 @@
     "LovenoteCloudRendererMixin",
     "LovenoteLivingEntityMixin",
     "LovenoteClientPlayerInteractionManagerMixin",
-    "LovenoteClientPlayNetworkHandlerMixin"
+    "LovenoteClientPlayNetworkHandlerMixin",
+    "LovenoteScreenFxMixin",
+    "LovenoteCrosshairMixin",
+    "LovenoteHudMixin"
   ],
   "injectors": {
     "defaultRequire": 1
