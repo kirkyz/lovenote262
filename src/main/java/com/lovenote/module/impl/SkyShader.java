@@ -156,7 +156,7 @@ public class SkyShader extends Module {
 
 	private boolean starsOn() {
 		return starBrightness.getF() > 0.01f && switch (preset.get()) {
-			case "Night", "Void", "Aurora", "Nebula", "Vaporwave", "Matrix", "BloodMoon", "Ice",
+			case "Lovenote", "Night", "Void", "Aurora", "Nebula", "Vaporwave", "Matrix", "BloodMoon", "Ice",
 					"Candy", "Mono", "Custom", "Galaxy", "Meteor Shower", "Eclipse", "Twilight",
 					"Deep Sea", "Solar Storm", "Midnight Bloom", "Obsidian", "Comet", "Astral",
 					"Lavender", "Cherry", "Aurora Borealis" -> true;
@@ -225,7 +225,7 @@ public class SkyShader extends Module {
 		int seg = domeDetail.getI();
 		int rings = Math.max(6, seg / 3);
 
-		MeshBuilder b = Fx.texQuads(Tex.SOFT);
+		MeshBuilder b = Fx.colorQuadsDepth();
 		for (int r = 0; r < rings; r++) {
 			float phi0 = (float) (r * Math.PI / rings);
 			float phi1 = (float) ((r + 1) * Math.PI / rings);
@@ -244,10 +244,10 @@ public class SkyShader extends Module {
 				float x10 = Mth.cos(a0) * rad1, z10 = Mth.sin(a0) * rad1;
 				float x11 = Mth.cos(a1) * rad1, z11 = Mth.sin(a1) * rad1;
 
-				Fx.vt(b, mat, (float) cx + x00, (float) cy + y0, (float) cz + z00, 0f, 0f, c0);
-				Fx.vt(b, mat, (float) cx + x01, (float) cy + y0, (float) cz + z01, 1f, 0f, c0);
-				Fx.vt(b, mat, (float) cx + x11, (float) cy + y1, (float) cz + z11, 1f, 1f, c1);
-				Fx.vt(b, mat, (float) cx + x10, (float) cy + y1, (float) cz + z10, 0f, 1f, c1);
+				Fx.vc(b, mat, (float) cx + x00, (float) cy + y0, (float) cz + z00, c0);
+				Fx.vc(b, mat, (float) cx + x01, (float) cy + y0, (float) cz + z01, c0);
+				Fx.vc(b, mat, (float) cx + x11, (float) cy + y1, (float) cz + z11, c1);
+				Fx.vc(b, mat, (float) cx + x10, (float) cy + y1, (float) cz + z10, c1);
 			}
 		}
 		Fx.draw();
@@ -279,7 +279,7 @@ public class SkyShader extends Module {
 		float tw = twinkle.getF();
 
 		Fx.texture(Tex.STAR);
-		MeshBuilder b = Fx.texQuads();
+		MeshBuilder b = Fx.texQuadsDepth();
 
 		long t = System.currentTimeMillis();
 		for (int i = 0; i < starCount; i++) {
@@ -299,7 +299,7 @@ public class SkyShader extends Module {
 		float[] st = starField();
 		int op = (int) (110 * milkyWay.getF());
 		Fx.texture(Tex.SOFT);
-		MeshBuilder b = Fx.texQuads();
+		MeshBuilder b = Fx.texQuadsDepth();
 		float tilt = 0.6f;
 		for (int i = 0; i < 240; i++) {
 			float x = st[i * 3], y = st[i * 3 + 1], z = st[i * 3 + 2];
@@ -313,7 +313,7 @@ public class SkyShader extends Module {
 
 	private void constellationLines(Matrix4f mat, double cx, double cy, double cz) {
 		float[] st = starField();
-		MeshBuilder b = Fx.colorQuads();
+		MeshBuilder b = Fx.colorQuadsDepth();
 		int op = (int) (170 * constellations.getF());
 		Random r = new Random(0xC0FFEE);
 		for (int i = 0; i < 60; i++) {
@@ -336,7 +336,7 @@ public class SkyShader extends Module {
 
 	private void planetBodies(Matrix4f mat, double cx, double cy, double cz) {
 		Fx.texture(Tex.GLOW);
-		MeshBuilder b = Fx.texQuads();
+		MeshBuilder b = Fx.texQuadsDepth();
 		int n = planets.getI();
 		for (int i = 0; i < n; i++) {
 			float ang = (float) (i * 1.9);
@@ -354,7 +354,7 @@ public class SkyShader extends Module {
 		float time = (System.currentTimeMillis() % 100000L) / 1000f * auroraSpeed.getF();
 
 		Fx.texture(Tex.SOFT);
-		MeshBuilder b = Fx.texQuads();
+		MeshBuilder b = Fx.texQuadsDepth();
 		for (int band = 0; band < 3; band++) {
 			float phase = time + band * 2.1f;
 			int col = Colors.rainbow(band * 0.22f + time * 0.02f);
@@ -382,13 +382,13 @@ public class SkyShader extends Module {
 
 		if (sunFlare.get() && day) {
 			Fx.texture(Tex.GLOW);
-			MeshBuilder g = Fx.texQuads();
+			MeshBuilder g = Fx.texQuadsDepth();
 			Fx.billboard(g, mat, (float) cx + sx, (float) cy + sy, (float) cz, size * 4.5f, Colors.alpha(horizon(), 90));
 			Fx.draw();
 		}
 
 		Fx.texture(day ? SUN : MOON);
-		MeshBuilder b = Fx.texQuads();
+		MeshBuilder b = Fx.texQuadsDepth();
 		int c = day ? 0xFFFFFFFF : 0xFFD8E4FF;
 		Fx.billboard(b, mat, (float) cx + sx, (float) cy + sy, (float) cz, size, c);
 		Fx.draw();
@@ -416,7 +416,7 @@ public class SkyShader extends Module {
 
 		long now = System.currentTimeMillis();
 		Fx.texture(Tex.SOFT);
-		MeshBuilder b = Fx.texQuads();
+		MeshBuilder b = Fx.texQuadsDepth();
 		for (int i = meteorsList.size() - 1; i >= 0; i--) {
 			Meteor mm = meteorsList.get(i);
 			float age = (now - mm.t0) / 1000f;
@@ -439,7 +439,7 @@ public class SkyShader extends Module {
 		if (a < 4) return;
 		int col = horizon();
 		Fx.texture(Tex.SOFT);
-		MeshBuilder b = Fx.texQuads();
+		MeshBuilder b = Fx.texQuadsDepth();
 		float w = R * 1.6f;
 		Fx.vt(b, mat, (float) cx - w, (float) cy - 6f, (float) cz - w, 0f, 0f, Colors.alpha(col, 0));
 		Fx.vt(b, mat, (float) cx + w, (float) cy - 6f, (float) cz - w, 1f, 0f, Colors.alpha(col, 0));
