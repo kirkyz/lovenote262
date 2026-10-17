@@ -12,7 +12,7 @@ public final class Colors {
 			"Sunset", "Dawn", "Mint", "Forest", "Ocean", "Ice", "Sky", "Lavender", "Magenta",
 			"Rose", "Coral", "Amber", "Gold", "Lime", "Emerald", "Teal", "Aqua", "Azure",
 			"Indigo", "Violet", "Plum", "Crimson", "Ember", "Neon", "Vapor", "Matrix", "Candy",
-			"Midnight", "Blood", "Frost", "Haze", "Sakura", "Toxic"
+			"Midnight", "Blood", "Frost", "Haze", "Sakura", "Toxic", "Drain"
 	};
 
 	public static final int[][] PRESETS = {
@@ -29,7 +29,7 @@ public final class Colors {
 			{0xFF4500, 0xFF8C00}, {0x39FF14, 0x00E5FF}, {0xFF71CE, 0x01CDFE}, {0x00FF41, 0x008F11},
 			{0xFF9ACB, 0x9BF6FF},
 			{0x191970, 0x4B0082}, {0x8A0303, 0xDC143C}, {0xB3E5FC, 0x4FC3F7}, {0x9D8DF1, 0x6FD1E8},
-			{0xFFB7C5, 0xFF8FAB}, {0xB6FF00, 0x00FF9C}
+			{0xFFB7C5, 0xFF8FAB}, {0xB6FF00, 0x00FF9C}, {0xE6F0FF, 0x59C2FF}
 	};
 
 	private Colors() {}

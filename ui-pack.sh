@@ -9,9 +9,9 @@
 set -u
 
 cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null || true
-[ -f settings.gradle ] || cd /workspaces/lovenote262 2>/dev/null || true
-if [ ! -f settings.gradle ]; then
-  echo "!! run me from the repo root (settings.gradle not found)"; exit 1
+[ -f settings.gradle.kts ] || cd /workspaces/lovenote262 2>/dev/null || true
+if [ ! -f settings.gradle.kts ]; then
+  echo "!! run me from the repo root (settings.gradle.kts not found)"; exit 1
 fi
 
 mkdir -p src/main/java/com/lovenote/util
