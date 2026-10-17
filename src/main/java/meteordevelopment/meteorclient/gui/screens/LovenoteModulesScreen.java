@@ -67,6 +67,7 @@ public class LovenoteModulesScreen extends TabScreen {
     private boolean closing, finishClose, animating;
     private long lastNano;
     private Row selected, panelModule, listening;
+    private Hit dragging;
     private int dragWin, grabX, grabY;
     private boolean settingFields;
     private String tooltip;
@@ -391,14 +392,14 @@ public class LovenoteModulesScreen extends TabScreen {
         } else if (s instanceof IntSetting n) {
             txt(ctx, n.name, x, y + 2, LovenotePalette.dim());
             txt(ctx, String.valueOf(n.get()), x + w - font.width(String.valueOf(n.get())), y + 2, LovenotePalette.faint());
-            float t = (float) ((n.get() - n.min) / (double) (n.max - n.min));
+            float t = (float) ((n.get() - n.sliderMin) / (double) (n.sliderMax - n.sliderMin));
             drawSlider(ctx, x, y, w, t);
             addHit(x, y + 11, w, 13, K_SLIDER, owner, n, 0);
         } else if (s instanceof DoubleSetting n) {
             txt(ctx, n.name, x, y + 2, LovenotePalette.dim());
             String val = String.format("%.2f", n.get());
             txt(ctx, val, x + w - font.width(val), y + 2, LovenotePalette.faint());
-            float t = (float) ((n.get() - n.min) / (n.max - n.min));
+            float t = (float) ((n.get() - n.sliderMin) / (n.sliderMax - n.sliderMin));
             drawSlider(ctx, x, y, w, t);
             addHit(x, y + 11, w, 13, K_SLIDER, owner, n, 0);
         } else if (s instanceof EnumSetting<?> e) {
@@ -881,7 +882,7 @@ public class LovenoteModulesScreen extends TabScreen {
                     else if (hit.setting instanceof com.lovenote.setting.BoolSetting b) b.toggle();
                 }
                 case K_MULTI -> { if (hit.setting instanceof com.lovenote.setting.MultiSetting ms) ms.toggle(hit.idx); }
-                case K_SLIDER -> { dragWin = 3; setSlider(hit, mx); }
+                case K_SLIDER -> { dragWin = 3; dragging = hit; setSlider(hit, mx); }
                 case K_MODE -> {
                     if (hit.setting instanceof EnumSetting<?> es) {
                         Object[] vals = enumValues(es);
@@ -910,8 +911,8 @@ public class LovenoteModulesScreen extends TabScreen {
 
     private void setSlider(Hit h, double mx) {
         double t = Mth.clamp((mx - h.x) / (double) h.w, 0.0, 1.0);
-        if (h.setting instanceof IntSetting n) n.set((int) (n.min + t * (n.max - n.min)));
-        else if (h.setting instanceof DoubleSetting n) n.set(n.min + t * (n.max - n.min));
+        if (h.setting instanceof IntSetting n) n.set((int) (n.sliderMin + t * (n.sliderMax - n.sliderMin)));
+        else if (h.setting instanceof DoubleSetting n) n.set(n.sliderMin + t * (n.sliderMax - n.sliderMin));
         else if (h.setting instanceof com.lovenote.setting.NumberSetting n) n.set(n.min + t * (n.max - n.min));
     }
 
@@ -921,14 +922,14 @@ public class LovenoteModulesScreen extends TabScreen {
         if (dragWin == 1) { mainX = (int) mx - grabX; mainY = (int) my - grabY; clampWindows(); return true; }
         if (dragWin == 2) { panX = (int) mx - grabX; panY = (int) my - grabY; clampWindows(); return true; }
         if (dragWin == 3) {
-            for (Hit h : hits) if (h.kind == K_SLIDER) { setSlider(h, mx); break; }
+            if (dragging != null) setSlider(dragging, mx);
             return true;
         }
         return super.mouseDragged(click, dx, dy);
     }
 
     @Override
-    public boolean mouseReleased(MouseButtonEvent click) { dragWin = 0; return super.mouseReleased(click); }
+    public boolean mouseReleased(MouseButtonEvent click) { dragWin = 0; dragging = null; return super.mouseReleased(click); }
 
     @Override
     public boolean mouseScrolled(double mx, double my, double horizontal, double amount) {

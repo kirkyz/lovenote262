@@ -1,6 +1,10 @@
 package com.lovenote.util;
 
 import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.textures.AddressMode;
+import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.blaze3d.textures.GpuSampler;
 import com.mojang.blaze3d.vertex.PoseStack;
 import meteordevelopment.meteorclient.renderer.MeshBuilder;
 import meteordevelopment.meteorclient.renderer.MeshRenderer;
@@ -26,8 +30,13 @@ public final class Fx {
 	private static final ThreadLocal<RenderPipeline> PIPE = new ThreadLocal<>();
 	private static final Color COL = new Color();
 	private static final int[] IDX = new int[4];
+	private static boolean textured;
 
 	private static PoseStack matrices;
+
+	private static GpuSampler repeat() {
+		return RenderSystem.getSamplerCache().getSampler(AddressMode.REPEAT, AddressMode.REPEAT, FilterMode.LINEAR, FilterMode.LINEAR, false);
+	}
 	private static int qi;
 
 	public static void setMatrices(PoseStack stack) { matrices = stack; }
@@ -58,7 +67,8 @@ public final class Fx {
 	public static void vc(MeshBuilder b, Matrix4f mat, float x, float y, float z, int c) {
 		if (qi == 0) b.ensureQuadCapacity();
 		rgb(c);
-		push(b.vec3(x, y, z).color(COL).next());
+		if (textured) push(b.vec3(x, y, z).vec2(0f, 0f).color(COL).next());
+		else push(b.vec3(x, y, z).color(COL).next());
 	}
 
 	public static void vt(MeshBuilder b, Matrix4f mat, float x, float y, float z, float u, float v, int c) {
@@ -98,6 +108,7 @@ public final class Fx {
 		MESH.set(mesh);
 		PIPE.set(pipe);
 		qi = 0;
+		textured = tex != null;
 		if (tex != null) TEXTURE.set(tex);
 		return mesh;
 	}
@@ -116,7 +127,7 @@ public final class Fx {
 		Identifier tex = TEXTURE.get();
 		if (tex != null) {
 			AbstractTexture t = MC.getTextureManager().getTexture(tex);
-			if (t != null) r.sampler("u_Texture", t.getTextureView(), t.getSampler());
+			if (t != null) r.sampler("u_Texture", t.getTextureView(), repeat());
 		}
 		r.end();
 

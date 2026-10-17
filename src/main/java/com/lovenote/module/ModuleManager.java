@@ -1,6 +1,7 @@
 package com.lovenote.module;
 
 import com.lovenote.module.impl.GroundFog;
+import com.lovenote.module.impl.SkyShader;
 import com.lovenote.util.WorldRenderContext;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -15,6 +16,7 @@ public class ModuleManager {
 
 	public ModuleManager() {
 		register(new GroundFog());
+		register(new SkyShader());
 	}
 
 	private <T extends Module> T register(T m) {

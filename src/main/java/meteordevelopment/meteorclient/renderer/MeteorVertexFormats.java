@@ -30,5 +30,11 @@ public abstract class MeteorVertexFormats {
         .addAttribute("Color", GpuFormat.RGBA8_UNORM)   // 4 bytes (RGBA, 0-255)
         .build();
 
+    public static final VertexFormat POS3_TEXTURE_COLOR = VertexFormat.builder(STEP_RATE)
+        .addAttribute("Position", GpuFormat.RGB32_FLOAT) // 3 floats (x, y, z)
+        .addAttribute("Texture", GpuFormat.RG32_FLOAT) // 2 floats (u, v)
+        .addAttribute("Color", GpuFormat.RGBA8_UNORM)   // 4 bytes (RGBA, 0-255)
+        .build();
+
     private MeteorVertexFormats() {}
 }
