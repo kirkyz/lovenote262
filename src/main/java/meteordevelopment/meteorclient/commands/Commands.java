@@ -8,6 +8,7 @@ package meteordevelopment.meteorclient.commands;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import meteordevelopment.meteorclient.MeteorClient;
+import meteordevelopment.meteorclient.commands.commands.LovCommand;
 import meteordevelopment.meteorclient.commands.commands.*;
 import meteordevelopment.meteorclient.events.game.GameJoinedEvent;
 import meteordevelopment.meteorclient.pathing.PathManagers;
@@ -29,6 +30,7 @@ public class Commands {
 
     @PostInit(dependencies = PathManagers.class)
     public static void init() {
+        add(new LovCommand());
         add(new VClipCommand());
         add(new HClipCommand());
         add(new DismountCommand());
