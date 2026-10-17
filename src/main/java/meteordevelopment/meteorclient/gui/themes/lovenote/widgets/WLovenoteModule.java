@@ -31,7 +31,7 @@ public class WLovenoteModule extends WPressable implements LovenoteWidget {
 
     @Override
     public double pad() {
-        return theme.scale(4);
+        return theme.scale(5);
     }
 
     @Override
@@ -61,18 +61,21 @@ public class WLovenoteModule extends WPressable implements LovenoteWidget {
         animAccent += delta * 6 * (module.isActive() ? 1 : -1);
         animAccent = Mth.clamp(animAccent, 0, 1);
 
-        double r = theme.radius();
+        double r = theme.pillRadius();
         double inset = theme.scale(1);
 
         if (animBg > 0) {
             double w = (width - inset * 2) * animBg;
-            roundedQuad(renderer, x + inset, y + inset, w, height - inset * 2, r, theme.moduleRowBackground(module.isActive(), mouseOver));
+            roundedGradient(renderer, x + inset, y + inset, w, height - inset * 2, r,
+                theme.cardTop(mouseOver), theme.cardBottom());
+            outline(renderer, x + inset, y + inset, w, height - inset * 2, r, theme.hairline());
         }
 
         if (animAccent > 0) {
-            double bh = (height - inset * 2) * animAccent;
+            double bh = (height - inset * 2 - theme.scale(6)) * animAccent;
             double bw = theme.scale(2);
-            roundedQuad(renderer, x + inset, y + (height - bh) / 2, bw, bh, theme.scale(1), theme.accentTop());
+            roundedGradient(renderer, x + inset + theme.scale(3), y + (height - bh) / 2, bw, bh, theme.scale(1),
+                theme.accentAt(0), theme.accentAt(0.3));
         }
 
         double tx = this.x + pad;

@@ -15,50 +15,64 @@ public interface LovenoteWidget extends MeteorWidget {
     }
 
     default void gradientQuad(GuiRenderer renderer, double x, double y, double w, double h, Color top, Color bottom) {
-        renderer.quad(x, y, w, h, top, top, bottom, bottom);
+        LovenoteStyle.gradientQuad(renderer, x, y, w, h, top, bottom);
     }
 
     default void roundedQuad(GuiRenderer renderer, double x, double y, double w, double h, double r, Color color) {
-        if (r <= 0 || w < r * 2 || h < r * 2) {
-            renderer.quad(x, y, w, h, color);
-            return;
-        }
-
-        renderer.quad(x + r, y, w - r * 2, h, color);
-        renderer.quad(x, y + r, r, h - r * 2, color);
-        renderer.quad(x + w - r, y + r, r, h - r * 2, color);
-
-        corner(renderer, x + r, y + r, r, Math.PI, Math.PI * 1.5, color);
-        corner(renderer, x + w - r, y + r, r, Math.PI * 1.5, Math.PI * 2, color);
-        corner(renderer, x + w - r, y + h - r, r, 0, Math.PI * 0.5, color);
-        corner(renderer, x + r, y + h - r, r, Math.PI * 0.5, Math.PI, color);
-    }
-
-    private void corner(GuiRenderer renderer, double cx, double cy, double r, double a0, double a1, Color color) {
-        int segments = 5;
-        for (int i = 0; i < segments; i++) {
-            double t0 = a0 + (a1 - a0) * i / segments;
-            double t1 = a0 + (a1 - a0) * (i + 1) / segments;
-            renderer.triangle(
-                cx, cy,
-                cx + Math.cos(t0) * r, cy + Math.sin(t0) * r,
-                cx + Math.cos(t1) * r, cy + Math.sin(t1) * r,
-                color
-            );
-        }
+        LovenoteStyle.roundedQuad(renderer, x, y, w, h, r, color);
     }
 
     /** Rounded on the top two corners only. */
     default void roundedQuadTop(GuiRenderer renderer, double x, double y, double w, double h, double r, Color color) {
-        if (r <= 0 || w < r * 2 || h < r) {
-            renderer.quad(x, y, w, h, color);
-            return;
-        }
+        LovenoteStyle.roundedQuadTop(renderer, x, y, w, h, r, color);
+    }
 
-        renderer.quad(x, y + r, w, h - r, color);
-        renderer.quad(x + r, y, w - r * 2, r, color);
+    // ------------------------------------------------------------ new helpers
 
-        corner(renderer, x + r, y + r, r, Math.PI, Math.PI * 1.5, color);
-        corner(renderer, x + w - r, y + r, r, Math.PI * 1.5, Math.PI * 2, color);
+    default void roundedGradient(GuiRenderer renderer, double x, double y, double w, double h,
+                                 double r, Color top, Color bottom) {
+        LovenoteStyle.roundedGradient(renderer, x, y, w, h, r, top, bottom);
+    }
+
+    default void outline(GuiRenderer renderer, double x, double y, double w, double h, double r, Color color) {
+        LovenoteStyle.outline(renderer, x, y, w, h, r, LovenoteStyle.HAIRLINE, color);
+    }
+
+    default void innerHighlight(GuiRenderer renderer, double x, double y, double w, double r, Color color) {
+        LovenoteStyle.innerHighlight(renderer, x, y, w, r, color);
+    }
+
+    default void edgeGradient(GuiRenderer renderer, double x, double y, double w, Color left, Color right) {
+        LovenoteStyle.edgeGradient(renderer, x, y, w, LovenoteStyle.HAIRLINE, left, right);
+    }
+
+    default void glow(GuiRenderer renderer, double x, double y, double w, double h, double r, Color color) {
+        LovenoteStyle.glow(renderer, x, y, w, h, r, color, 6);
+    }
+
+    default void shadow(GuiRenderer renderer, double x, double y, double w, double h, double r, Color color) {
+        LovenoteStyle.shadow(renderer, x, y, w, h, r, color);
+    }
+
+    /** Gradient fill + hairline + inner highlight. */
+    default void card(GuiRenderer renderer, double x, double y, double w, double h, Color fillTop, Color fillBottom, Color edge) {
+        LovenoteStyle.card(renderer, x, y, w, h, lovenote().radius(), fillTop, fillBottom, edge);
+    }
+
+    default void micro(GuiRenderer renderer, String text, double x, double y, Color color) {
+        LovenoteStyle.micro(renderer, lovenote(), text, x, y, color);
+    }
+
+    default void tracked(GuiRenderer renderer, String text, double x, double y, Color color, double spacing) {
+        LovenoteStyle.tracked(renderer, lovenote(), text, x, y, color, spacing, false);
+    }
+
+    default void toggle(GuiRenderer renderer, double x, double y, double w, double h, double anim) {
+        LovenoteStyle.toggle(renderer, x, y, w, h, anim,
+            new Color(255, 255, 255, 26), lovenote().accentTop(), lovenote().toggleKnob());
+    }
+
+    default void divider(GuiRenderer renderer, double x, double y, double w, Color color) {
+        LovenoteStyle.divider(renderer, x, y, w, color);
     }
 }

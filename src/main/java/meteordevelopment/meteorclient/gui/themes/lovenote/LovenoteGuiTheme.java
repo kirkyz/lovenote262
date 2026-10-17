@@ -101,12 +101,38 @@ public class LovenoteGuiTheme extends MeteorGuiTheme {
         separatorEdges.set(new SettingColor(255, 255, 255, 14));
     }
 
+    // ---------------------------------------------------------------- radii
+
     public double radius() {
-        return scale(4);
+        return scale(8);
     }
+
+    public double cardRadius() {
+        return scale(9);
+    }
+
+    public double windowRadius() {
+        return scale(12);
+    }
+
+    public double pillRadius() {
+        return scale(9);
+    }
+
+    // ---------------------------------------------------------------- surfaces
 
     public Color panelColor() {
         return backgroundColor.get();
+    }
+
+    public Color panelTop() {
+        SettingColor c = backgroundColor.get();
+        return new SettingColor(c.r, c.g, c.b, Math.min(255, c.a + 12));
+    }
+
+    public Color panelBottom() {
+        SettingColor c = backgroundColor.get();
+        return new SettingColor(Math.max(0, c.r - 6), Math.max(0, c.g - 6), Math.max(0, c.b - 6), c.a);
     }
 
     public Color headerColor() {
@@ -133,7 +159,55 @@ public class LovenoteGuiTheme extends MeteorGuiTheme {
         return new SettingColor(255, 255, 255, hovered ? 28 : 15);
     }
 
-    private float phase() {
+    // ---------------------------------------------------------------- edges / depth
+
+    public Color hairline() {
+        return new SettingColor(255, 255, 255, 20);
+    }
+
+    public Color hairlineStrong() {
+        return new SettingColor(255, 255, 255, 38);
+    }
+
+    public Color innerTop() {
+        return new SettingColor(255, 255, 255, 30);
+    }
+
+    public Color shadowColor() {
+        return new SettingColor(0, 0, 0, 120);
+    }
+
+    public Color trackColor() {
+        return new SettingColor(255, 255, 255, 22);
+    }
+
+    public Color microText() {
+        return new SettingColor(150, 150, 164, 200);
+    }
+
+    // ---------------------------------------------------------------- cards
+
+    public Color cardTop(boolean hovered) {
+        return new SettingColor(255, 255, 255, hovered ? 24 : 14);
+    }
+
+    public Color cardTopActive(boolean hovered) {
+        SettingColor a = accentColor.get();
+        return new SettingColor(a.r, a.g, a.b, hovered ? 58 : 36);
+    }
+
+    public Color cardBottom() {
+        return new SettingColor(10, 10, 14, 145);
+    }
+
+    public Color glowColor() {
+        SettingColor a = accentColor.get();
+        return new SettingColor(a.r, a.g, a.b, 255);
+    }
+
+    // ---------------------------------------------------------------- accent
+
+    public float phase() {
         if (!animatedGradient.get()) return 0f;
         return (System.currentTimeMillis() % 6000L) / 6000f;
     }
@@ -160,6 +234,13 @@ public class LovenoteGuiTheme extends MeteorGuiTheme {
         if (!gradients.get()) return accentColor.get();
         return sample(phase() + 0.5f);
     }
+
+    public Color accentAt(double offset) {
+        if (!gradients.get()) return accentColor.get();
+        return sample(phase() + offset);
+    }
+
+    // ---------------------------------------------------------------- widgets
 
     @Override
     protected WButton button(String text, GuiTexture texture) {
@@ -209,6 +290,10 @@ public class LovenoteGuiTheme extends MeteorGuiTheme {
             (int) (a.b + (b.b - a.b) * anim),
             (int) (60 + 140 * anim)
         );
+    }
+
+    public Color toggleOff() {
+        return new SettingColor(255, 255, 255, 26);
     }
 
     public Color toggleKnob() {

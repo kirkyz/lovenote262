@@ -54,9 +54,14 @@ public interface LovenoteWidget extends MeteorWidget {
         LovenoteStyle.shadow(renderer, x, y, w, h, r, color);
     }
 
-    /** Gradient fill + hairline + inner highlight. */
-    default void card(GuiRenderer renderer, double x, double y, double w, double h, Color fillTop, Color fillBottom, Color edge) {
-        LovenoteStyle.card(renderer, x, y, w, h, lovenote().radius(), fillTop, fillBottom, edge);
+    /** Gradient fill + hairline + inner highlight, at card radius. */
+    default void card(GuiRenderer renderer, double x, double y, double w, double h,
+                      Color fillTop, Color fillBottom, Color edge) {
+        LovenoteStyle.card(renderer, x, y, w, h, lovenote().cardRadius(), fillTop, fillBottom, edge);
+    }
+
+    default void panel(GuiRenderer renderer, double x, double y, double w, double h, Color fillTop, Color fillBottom, Color edge) {
+        LovenoteStyle.card(renderer, x, y, w, h, lovenote().windowRadius(), fillTop, fillBottom, edge);
     }
 
     default void micro(GuiRenderer renderer, String text, double x, double y, Color color) {
@@ -69,7 +74,7 @@ public interface LovenoteWidget extends MeteorWidget {
 
     default void toggle(GuiRenderer renderer, double x, double y, double w, double h, double anim) {
         LovenoteStyle.toggle(renderer, x, y, w, h, anim,
-            new Color(255, 255, 255, 26), lovenote().accentTop(), lovenote().toggleKnob());
+            lovenote().toggleOff(), lovenote().accentAt(0.15), lovenote().toggleKnob());
     }
 
     default void divider(GuiRenderer renderer, double x, double y, double w, Color color) {

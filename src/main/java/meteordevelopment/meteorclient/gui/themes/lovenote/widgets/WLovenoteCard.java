@@ -5,6 +5,7 @@ import meteordevelopment.meteorclient.gui.themes.lovenote.LovenoteGuiTheme;
 import meteordevelopment.meteorclient.gui.themes.lovenote.LovenoteWidget;
 import meteordevelopment.meteorclient.gui.widgets.pressable.WPressable;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.utils.render.color.Color;
 import net.minecraft.util.Mth;
 
 import static meteordevelopment.meteorclient.MeteorClient.mc;
@@ -23,14 +24,14 @@ public class WLovenoteCard extends WPressable implements LovenoteWidget {
 
     @Override
     public double pad() {
-        return theme.scale(5);
+        return theme.scale(7);
     }
 
     @Override
     protected void onCalculateSize() {
         double pad = pad();
-        width = pad * 2 + theme.scale(120);
-        height = pad * 2 + theme.textHeight() * 2 + theme.scale(2);
+        width = pad * 2 + theme.scale(130);
+        height = pad * 2 + theme.textHeight() * 2 + theme.scale(4);
     }
 
     @Override
@@ -50,27 +51,37 @@ public class WLovenoteCard extends WPressable implements LovenoteWidget {
     protected void onRender(GuiRenderer renderer, double mouseX, double mouseY, double delta) {
         LovenoteGuiTheme theme = lovenote();
         double pad = pad();
-        double r = theme.radius();
+        double r = theme.cardRadius();
 
         anim += delta * 6 * (module.isActive() ? 1 : -1);
         anim = Mth.clamp(anim, 0, 1);
 
-        roundedQuad(renderer, x, y, width, height, r, theme.cardBackground(mouseOver, anim));
+        boolean active = module.isActive();
+
+        if (mouseOver) shadow(renderer, x, y, width, height, r, theme.shadowColor());
+        if (active && anim > 0.05) glow(renderer, x, y, width, height, r, theme.accentAt(0.1));
+
+        Color top = active ? theme.cardTopActive(mouseOver) : theme.cardTop(mouseOver);
+        card(renderer, x, y, width, height, top, theme.cardBottom(), theme.hairline());
+
+        // accent bar on the left edge
+        if (anim > 0.01) {
+            double bh = (height - theme.scale(16)) * anim;
+            roundedGradient(renderer, x + theme.scale(3), y + (height - bh) / 2,
+                theme.scale(2), bh, theme.scale(1), theme.accentAt(0), theme.accentAt(0.3));
+        }
 
         double th = theme.textHeight();
-        double toggleW = theme.scale(20);
 
-        renderer.text(module.title, x + pad, y + pad, theme.textColor(), false);
-        renderer.text(fit(module.description, width - pad * 2), x + pad, y + pad + th + theme.scale(2), theme.textSecondaryColor(), false);
+        renderer.text(module.title, x + pad, y + pad, active ? theme.accentText() : theme.textColor(), false);
+        renderer.text(fit(module.description, width - pad * 2), x + pad, y + pad + th + theme.scale(4),
+            theme.textSecondaryColor(), false);
 
-        double tw = theme.scale(18);
-        double thh = theme.scale(10);
+        // slim toggle
+        double tw = theme.scale(26);
+        double thh = theme.scale(14);
         double tx = x + width - pad - tw;
         double ty = y + pad + (th - thh) / 2;
-
-        roundedQuad(renderer, tx, ty, tw, thh, thh / 2, theme.toggleTrack(anim));
-        double kr = thh - theme.scale(2);
-        double kx = tx + theme.scale(1) + (tw - kr - theme.scale(2)) * anim;
-        roundedQuad(renderer, kx, ty + theme.scale(1), kr, kr, kr / 2, theme.toggleKnob());
+        toggle(renderer, tx, ty, tw, thh, anim);
     }
 }

@@ -3,9 +3,7 @@ import meteordevelopment.meteorclient.gui.tabs.Tabs;
 import meteordevelopment.meteorclient.gui.tabs.TabScreen;
 
 import meteordevelopment.meteorclient.gui.GuiTheme;
-import meteordevelopment.meteorclient.gui.WidgetScreen;
 import meteordevelopment.meteorclient.gui.themes.lovenote.widgets.WLovenoteCard;
-import meteordevelopment.meteorclient.gui.themes.lovenote.widgets.WLovenotePanel;
 import meteordevelopment.meteorclient.gui.widgets.containers.WContainer;
 import meteordevelopment.meteorclient.gui.widgets.containers.WHorizontalList;
 import meteordevelopment.meteorclient.gui.widgets.containers.WVerticalList;
@@ -33,35 +31,35 @@ public class LovenoteModulesScreen extends TabScreen {
 
     @Override
     public void initWidgets() {
-        // header
-        header.add(theme.label("lovenote", true));
-        header.add(theme.label("")).expandX();
-        header.add(theme.label(mc.getUser().getName()));
-        header.add(theme.label(mc.getFps() + " fps"));
-        header.add(theme.label(LocalTime.now().format(TIME)));
-
-        // body
-
-        WVerticalList sidebar = body.add(theme.verticalList()).widget();
-        for (Category category : Modules.loopCategories()) {
-            sidebar.add(theme.button(category.name)).expandX();
-        }
-
-        WVerticalList content = body.add(theme.verticalList()).expandX().expandWidgetY().widget();
-        content.add(theme.textBox("search modules...")).expandX();
-
-        list = content.add(theme.verticalList()).expandX().expandWidgetY().widget();
-
-        // footer
-        footer.add(theme.label("lovenote - drag to move")).expandX();
-        footer.add(theme.label(Modules.get().getAll().size() + " modules"));
-
         if (selected == null) {
             for (Category category : Modules.loopCategories()) {
                 selected = category;
                 break;
             }
         }
+
+        // header: wordmark, wide search, stats on the right
+        header.add(theme.label("lovenote", true));
+        header.add(theme.textBox("search modules...")).expandX();
+        header.add(theme.label(mc.getUser().getName()));
+        header.add(theme.label(mc.getFps() + " fps"));
+        header.add(theme.label(LocalTime.now().format(TIME)));
+
+        // sidebar
+        WVerticalList sidebar = body.add(theme.verticalList()).widget();
+        for (Category category : Modules.loopCategories()) {
+            sidebar.add(theme.button(category.name)).expandX();
+        }
+
+        // content: category heading + card grid
+        WVerticalList content = body.add(theme.verticalList()).expandX().expandWidgetY().widget();
+        if (selected != null) content.add(theme.label(selected.name, true));
+
+        list = content.add(theme.verticalList()).expandX().expandWidgetY().widget();
+
+        // footer
+        footer.add(theme.label("lovenote - drag to move")).expandX();
+        footer.add(theme.label(Modules.get().getAll().size() + " modules"));
 
         refresh();
     }
