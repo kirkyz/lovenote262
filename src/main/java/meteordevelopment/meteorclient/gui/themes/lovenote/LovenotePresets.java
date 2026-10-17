@@ -3,7 +3,7 @@ package meteordevelopment.meteorclient.gui.themes.lovenote;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 
 public enum LovenotePresets {
-    Lovenote(0x9ACB, 0xB28DFF), Purple(0xA855F7, 0x9647FF), Red(0xEF4444, 0xF97316),
+    Lovenote(0xFF9ACB, 0xB28DFF), Purple(0xA855F7, 0x9647FF), Red(0xEF4444, 0xF97316),
     Orange(0xF97316, 0xFACC15), Yellow(0xFACC15, 0xA3E635), Green(0x22C55E, 0x10B981),
     Cyan(0x06B6D4, 0x3B82F6), Blue(0x3B82F6, 0x6366F1), Pink(0xEC4899, 0xF472B6),
     Sunset(0xFF7A45, 0xFFB84D), Dawn(0xFFC48A, 0xFF7AB0), Mint(0x3BE8B0, 0x2BD9C4),

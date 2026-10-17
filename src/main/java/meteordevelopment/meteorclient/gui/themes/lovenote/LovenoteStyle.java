@@ -1,8 +1,11 @@
 package meteordevelopment.meteorclient.gui.themes.lovenote;
 
 import meteordevelopment.meteorclient.gui.GuiTheme;
+import meteordevelopment.meteorclient.gui.WidgetScreen;
 import meteordevelopment.meteorclient.gui.renderer.GuiRenderer;
 import meteordevelopment.meteorclient.utils.render.color.Color;
+
+import static meteordevelopment.meteorclient.MeteorClient.mc;
 
 /** Modern glass draw helpers. Renderer-native: quad / triangle / text only. */
 public final class LovenoteStyle {
@@ -10,6 +13,8 @@ public final class LovenoteStyle {
 
     public static final double HAIRLINE = 1.0;
     public static final double TRACKING = 1.0;
+
+    public static final Color WHITE = new Color(255, 255, 255, 255);
 
     // ---------------------------------------------------------------- colour
 
@@ -30,6 +35,15 @@ public final class LovenoteStyle {
             (int) (a.g + (b.g - a.g) * t),
             (int) (a.b + (b.b - a.b) * t),
             (int) (a.a + (b.a - a.a) * t));
+    }
+
+    public static Color lerp(Color a, Color b, double t) {
+        return mix(a, b, t);
+    }
+
+    /** Only place that opens a screen, so a mappings difference is a one-line fix. */
+    public static void open(WidgetScreen screen) {
+        mc.gui.setScreen(screen);
     }
 
     // ---------------------------------------------------------------- shapes
@@ -92,7 +106,6 @@ public final class LovenoteStyle {
         r.quad(x, y, w, h, top, top, bottom, bottom);
     }
 
-    /** Rounded rect filled with a vertical gradient. */
     public static void roundedGradient(GuiRenderer r, double x, double y, double w, double h,
                                        double rad, Color top, Color bottom) {
         if (rad <= 0 || w < rad * 2 || h < rad * 2) { gradientQuad(r, x, y, w, h, top, bottom); return; }
@@ -109,7 +122,6 @@ public final class LovenoteStyle {
 
     // ---------------------------------------------------------------- edges
 
-    /** 1px hairline outline. */
     public static void outline(GuiRenderer r, double x, double y, double w, double h, double rad, double t, Color c) {
         if (w <= 0 || h <= 0) return;
         rad = Math.min(rad, Math.min(w, h) / 2);
@@ -124,17 +136,14 @@ public final class LovenoteStyle {
         ringCorner(r, x + rad, y + h - rad, rad, t, Math.PI * 0.5, Math.PI, c);
     }
 
-    /** 1px lighter line just inside the top edge. */
     public static void innerHighlight(GuiRenderer r, double x, double y, double w, double rad, Color c) {
         r.quad(x + rad, y, w - rad * 2, HAIRLINE, c);
     }
 
-    /** Animated accent sweep along a horizontal edge. */
     public static void edgeGradient(GuiRenderer r, double x, double y, double w, double t, Color left, Color right) {
         r.quad(x, y, w, t, left, right);
     }
 
-    /** Expanding bloom behind a shape. Draw before the shape itself. */
     public static void glow(GuiRenderer r, double x, double y, double w, double h, double rad, Color c, double spread) {
         int layers = 4;
         for (int i = layers; i >= 1; i--) {
@@ -143,7 +152,6 @@ public final class LovenoteStyle {
         }
     }
 
-    /** Soft drop shadow, offset downward. Draw before the shape itself. */
     public static void shadow(GuiRenderer r, double x, double y, double w, double h, double rad, Color c) {
         int layers = 6;
         for (int i = layers; i >= 1; i--) {
@@ -158,7 +166,6 @@ public final class LovenoteStyle {
 
     // ---------------------------------------------------------------- type
 
-    /** Vanilla font has no tracking, so draw char by char. */
     public static void tracked(GuiRenderer r, GuiTheme theme, String s, double x, double y,
                                Color c, double spacing, boolean title) {
         double cx = x;
@@ -175,7 +182,6 @@ public final class LovenoteStyle {
 
     // ---------------------------------------------------------------- widgets
 
-    /** Card: gradient fill + hairline + inner highlight. */
     public static void card(GuiRenderer r, double x, double y, double w, double h, double rad,
                             Color fillTop, Color fillBottom, Color edge) {
         roundedGradient(r, x, y, w, h, rad, fillTop, fillBottom);
@@ -183,45 +189,31 @@ public final class LovenoteStyle {
         innerHighlight(r, x + 1, y + 1, w - 2, rad, mul(edge, 1.6));
     }
 
-    /** Slim pill toggle. anim 0..1. */
     public static void toggle(GuiRenderer r, double x, double y, double w, double h,
                               double anim, Color track, Color on, Color knob) {
         double rad = h / 2;
         roundedQuad(r, x, y, w, h, rad, mix(track, on, anim));
         if (anim > 0.02) outline(r, x, y, w, h, rad, HAIRLINE, withA(on, (int) (60 * anim)));
         double pad = 2;
-        double kx = x + pad + (w - h) * anim;
-        circle(r, kx + (h - pad * 2) / 2, y + h / 2, (h - pad * 2) / 2, knob);
+        circle(r, x + pad + (w - h) * anim + (h - pad * 2) / 2, y + h / 2, (h - pad * 2) / 2, knob);
     }
 
-    /** Single rounded track with a raised active pill. */
     public static void segmented(GuiRenderer r, GuiTheme theme, double x, double y, double w, double h,
                                  String[] options, int active, Color track, Color on, Color onText, Color offText) {
         roundedQuad(r, x, y, w, h, h / 2, track);
         double seg = w / options.length;
-        if (active >= 0) {
-            roundedQuad(r, x + seg * active + 2, y + 2, seg - 4, h - 4, (h - 4) / 2, on);
-        }
+        if (active >= 0) roundedQuad(r, x + seg * active + 2, y + 2, seg - 4, h - 4, (h - 4) / 2, on);
         for (int i = 0; i < options.length; i++) {
-            String s = options[i];
-            double tx = x + seg * i + (seg - theme.textWidth(s)) / 2;
-            r.text(s, tx, y + (h - theme.textHeight()) / 2, i == active ? onText : offText, false);
+            double tx = x + seg * i + (seg - theme.textWidth(options[i])) / 2;
+            r.text(options[i], tx, y + (h - theme.textHeight()) / 2, i == active ? onText : offText, false);
         }
     }
 
-    /** Ultra-thin gradient slider with a crisp knob. */
     public static void slider(GuiRenderer r, double x, double y, double w, double value,
                               Color track, Color left, Color right, Color knob) {
         double th = 3;
         roundedQuad(r, x, y, w, th, th / 2, track);
-        double fill = Math.max(th, w * value);
-        roundedQuad(r, x, y, fill, th, th / 2, mix(left, right, value));
+        roundedQuad(r, x, y, Math.max(th, w * value), th, th / 2, mix(left, right, value));
         circle(r, x + w * value, y + th / 2, 4, knob);
-    }
-
-    /** Vertical gradient accent bar. */
-    public static void accentBar(GuiRenderer r, double x, double y, double w, double h, Color top, Color bottom) {
-        roundedQuad(r, x, y, w, h, w / 2, mix(top, bottom, 0.5));
-        gradientQuad(r, x, y, w, h, top, bottom);
     }
 }
