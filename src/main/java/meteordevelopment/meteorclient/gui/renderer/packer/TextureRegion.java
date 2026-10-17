@@ -1,9 +1,17 @@
+/*
+ * This file is part of the Meteor Client distribution (https://github.com/MeteorDevelopment/lovenote262).
+ * Copyright (c) Meteor Development.
+ */
+
 package meteordevelopment.meteorclient.gui.renderer.packer;
 
 public class TextureRegion {
-    public final double x, y, width, height;
+    public double x1, y1;
+    public double x2, y2;
 
-    public TextureRegion(double x, double y, double width, double height) {
-        this.x = x; this.y = y; this.width = width; this.height = height;
+    public double diagonal;
+
+    public TextureRegion(double width, double height) {
+        diagonal = Math.sqrt(width * width + height * height);
     }
 }
