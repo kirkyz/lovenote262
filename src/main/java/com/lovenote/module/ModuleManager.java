@@ -34,7 +34,7 @@ public class ModuleManager {
 
 	public ModuleManager() {
 		register(new GroundFog()).setEnabled(true);
-		register(new SkyShader());
+		register(new SkyShader()).setEnabled(true);
 		// ---- lovenote pack
 		register(new Interface()).setEnabled(true);
 		register(new LogoWidget()).setEnabled(true);

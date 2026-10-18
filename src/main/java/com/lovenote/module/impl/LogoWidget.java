@@ -13,8 +13,8 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /** Spinning client logo next to your name, with optional live info. */
 public class LogoWidget extends Module {
-	private final ModeSetting style = add(new ModeSetting("Logo", "Image", Logos.STYLES));
-	private final NumberSetting size = add(new NumberSetting("Logo size", 16, 6, 64, 1));
+	private final ModeSetting style = add(new ModeSetting("Logo", "Monogram", Logos.STYLES));
+	private final NumberSetting size = add(new NumberSetting("Logo size", 16, 6, 48, 1));
 	private final NumberSetting spin = add(new NumberSetting("Spin speed", 1.0, 0.0, 6.0, 0.05));
 	private final ModeSetting spinMode = add(new ModeSetting("Spin", "Spin", "Spin", "Pulse", "Spin + Pulse", "Static"));
 	private final NumberSetting x = add(new NumberSetting("X", 0.012, 0.0, 0.95, 0.002));
@@ -34,7 +34,7 @@ public class LogoWidget extends Module {
 	public LogoWidget() {
 		super("LogoWidget", Category.HUD);
 		describe("Spinning logo and client name.");
-		enabled = true;
+		// Default activation is handled by ModuleManager after construction.
 	}
 
 	private String label() {
@@ -65,6 +65,9 @@ public class LogoWidget extends Module {
 
 		int p = pad.getI();
 		int bw = inner + p * 2, bh = Math.max(sz, 11) + p * 2;
+		// Reposition the entire widget, not just the image, so the label stays visible.
+		px = Math.max(0, Math.min(px, Math.max(0, Gfx.guiW() - bw - 2)));
+		py = Math.max(0, Math.min(py, Math.max(0, Gfx.guiH() - bh - 2)));
 		if (frame.get()) Ui.pill(g, px, py, bw, bh);
 
 		int tx = px + p;

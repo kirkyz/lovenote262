@@ -26,7 +26,7 @@ public final class MenuFx {
 	public static boolean logoInMenu = true;
 	public static int logoMenuSize = 24;
 	public static String logoMenuCorner = "Top Left";
-	public static int logoStyle = 0;
+	public static int logoStyle = 2;
 	public static float logoSpin = 0.7f;
 
 	private static final class Ripple { int x, y; long t0; }
@@ -98,11 +98,13 @@ public final class MenuFx {
 	}
 
 	private static void menuLogo(GuiGraphicsExtractor g, int w, int h, long now) {
-		int s = logoMenuSize;
-		int pad = 8;
-		int x = pad, y = pad;
-		if (logoMenuCorner.contains("Right")) x = w - s - pad;
-		if (logoMenuCorner.contains("Bottom")) y = h - s - pad;
+		// Keep the spinning mark fully within the visible GUI at any UI scale.
+		int pad = 12;
+		int s = Math.max(12, Math.min(logoMenuSize, Math.min(w, h) / 8));
+		int x = logoMenuCorner.contains("Right") ? w - s - pad : pad;
+		int y = logoMenuCorner.contains("Bottom") ? h - s - pad : pad;
+		x = Math.max(0, Math.min(x, w - s));
+		y = Math.max(0, Math.min(y, h - s));
 		Logos.draw(g, x, y, s, (now / 1000.0) * logoSpin, logoStyle);
 	}
 

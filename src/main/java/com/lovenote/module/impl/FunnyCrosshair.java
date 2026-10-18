@@ -42,7 +42,7 @@ public class FunnyCrosshair extends Module {
 		super("FunnyCrosshair", Category.HUD);
 		describe("Custom animated crosshair with silly shapes.");
 		INSTANCE = this;
-		enabled = true;
+		// Default activation is handled by ModuleManager after construction.
 	}
 
 	public static boolean hideVanilla() {

@@ -65,7 +65,7 @@ public class SkyShader extends Module {
 	public SkyShader() {
 		super("SkyShader", Category.RENDER);
 		describe("Custom sky, sun, stars, aurora and nebula.");
-	        enabled = true;
+	        // Default activation is handled by ModuleManager after construction.
 }
 
 	private int top() {

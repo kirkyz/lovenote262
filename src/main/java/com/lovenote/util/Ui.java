@@ -84,6 +84,7 @@ public final class Ui {
 		MenuFx.edgeGlow = i.menuEdgeGlow.get();
 		MenuFx.edgeGlowAlpha = i.menuEdgeGlowAlpha.getI();
 		MenuFx.logoInMenu = i.logoInMenu.get();
+		MenuFx.logoStyle = i.logoStyle.index();
 		MenuFx.logoMenuSize = i.logoMenuSize.getI();
 		MenuFx.logoMenuCorner = i.logoMenuCorner.get();
 		MenuFx.logoSpin = i.logoMenuSpin.getF();

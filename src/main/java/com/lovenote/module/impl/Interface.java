@@ -51,7 +51,7 @@ public class Interface extends Module {
 	public final BoolSetting menuEdgeGlow = add(new BoolSetting("Edge glow", true));
 	public final NumberSetting menuEdgeGlowAlpha = add(new NumberSetting("Edge glow opacity", 70, 0, 200, 5));
 
-	public final ModeSetting logoStyle = add(new ModeSetting("Logo", "Image", Logos.STYLES));
+	public final ModeSetting logoStyle = add(new ModeSetting("Logo", "Monogram", Logos.STYLES));
 	public final NumberSetting logoSize = add(new NumberSetting("Logo size", 16, 6, 96, 1));
 	public final NumberSetting logoSpin = add(new NumberSetting("Logo spin", 1.0, 0.0, 6.0, 0.05));
 	public final BoolSetting logoInWidgets = add(new BoolSetting("Logo in widgets", true));
@@ -74,7 +74,7 @@ public class Interface extends Module {
 		describe("Master style: accent, glass, glow, ripples, logo, HUD frame.");
 		alsoIn.add(Category.HUD);
 		INSTANCE = this;
-		enabled = true;
+		// Default activation is handled by ModuleManager after construction.
 		Logos.setStyle(logoStyle.index());
 		Ui.push(this);
 	}
