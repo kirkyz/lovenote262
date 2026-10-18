@@ -1,0 +1,9 @@
+
+> Configure project :
+Fabric Loom: 1.17.21
+
+> Task :clean
+> Task :compileJava FROM-CACHE
+
+BUILD SUCCESSFUL in 1s
+2 actionable tasks: 1 executed, 1 from cache

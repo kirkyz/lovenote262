@@ -13,8 +13,8 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /** Spinning client logo next to your name, with optional live info. */
 public class LogoWidget extends Module {
-	private final ModeSetting style = add(new ModeSetting("Logo", "Monogram", Logos.STYLES));
-	private final NumberSetting size = add(new NumberSetting("Logo size", 16, 6, 48, 1));
+	private final ModeSetting style = add(new ModeSetting("Logo", "Image", Logos.STYLES));
+	private final NumberSetting size = add(new NumberSetting("Logo size", 64, 6, 128, 1));
 	private final NumberSetting spin = add(new NumberSetting("Spin speed", 1.0, 0.0, 6.0, 0.05));
 	private final ModeSetting spinMode = add(new ModeSetting("Spin", "Spin", "Spin", "Pulse", "Spin + Pulse", "Static"));
 	private final NumberSetting x = add(new NumberSetting("X", 0.012, 0.0, 0.95, 0.002));
@@ -45,14 +45,17 @@ public class LogoWidget extends Module {
 	public void onHud(GuiGraphicsExtractor g, float td) {
 		if (mc.player == null) return;
 		Logos.setStyle(style.index());
+                Logos.setTint(3);
+                Logos.keyBlack = false;
 		Ui.push(Interface.INSTANCE);
 
 		int px = (int) (x.get() * Gfx.guiW());
 		int py = (int) (y.get() * Gfx.guiH());
 
-		float t = System.currentTimeMillis() / 1000f;
+		double t = System.nanoTime() / 1_000_000_000.0;
 		double angle = 0;
-		if (spinMode.is("Spin") || spinMode.is("Spin + Pulse")) angle = t * spin.get();
+		if (spinMode.is("Spin") || spinMode.is("Spin + Pulse"))
+    angle = t * spin.get() * Math.PI * 2.0;
 		int sz = size.getI();
 		if (spinMode.is("Pulse") || spinMode.is("Spin + Pulse"))
 			sz = (int) (sz * (0.9 + 0.1 * Math.sin(t * 2.2)));
@@ -77,7 +80,7 @@ public class LogoWidget extends Module {
 		if (showName.get()) {
 			int col = nameColour.is("White") ? 0xFFFFFFFF
 					: nameColour.is("Accent") ? Colors.C1
-					: Colors.skeet((t * 0.25f) % 1f);
+					: Colors.skeet((float) ((t * 0.25) % 1.0));
 			Ui.text(g, name, tx, py + (bh - 8) / 2, col);
 			tx += nameW + gap.getI();
 		}

@@ -6,6 +6,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
+import meteordevelopment.meteorclient.gui.themes.lovenote.LovenotePalette;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -301,40 +302,47 @@ private static int tintColour(int tint, float t) {
                 Identifier.fromNamespaceAndPath("lovenote", "gen/drainer_smooth");
 
         private static boolean smoothLoaded = false;
+        private static int smoothTheme1 = Integer.MIN_VALUE, smoothTheme3 = Integer.MIN_VALUE;
+        private static NativeImage chromelessSrc;
 
         private static void ensureSmooth() {
-                if (smoothLoaded) return;
-
+                int c1 = LovenotePalette.C1 & 0xFFFFFF;
+                int c3 = LovenotePalette.C3 & 0xFFFFFF;
+                if (smoothLoaded && smoothTheme1 == c1 && smoothTheme3 == c3) return;
                 Minecraft mc = Minecraft.getInstance();
                 if (mc == null) return;
-
                 try {
                         RenderSystem.assertOnRenderThread();
-                        loadSource();
-                        if (src == null) return;
-
-                        NativeImage image = new NativeImage(
-                                src.getWidth(), src.getHeight(), false
-                        );
-
-                        int[] pixels = src.getPixels();
-
-                        for (int y = 0; y < src.getHeight(); y++) {
-                                for (int x = 0; x < src.getWidth(); x++) {
-                                        image.setPixelABGR(
-                                                x, y,
-                                                pixels[y * src.getWidth() + x]
-                                        );
+                        if (chromelessSrc == null) {
+                                try (InputStream in = Logos.class.getResourceAsStream(
+                                        "/assets/lovenote/textures/gui/drainer_chromeless.png")) {
+                                        if (in == null) {
+                                                System.err.println("[drainer] Missing chromeless logo resource");
+                                                return;
+                                        }
+                                        chromelessSrc = NativeImage.read(in);
                                 }
                         }
-
-                        mc.getTextureManager().register(
-                                SMOOTH_ID,
-                                new DynamicTexture(() -> "drainer_smooth", image)
-                        );
-
+                        NativeImage image = new NativeImage(chromelessSrc.getWidth(), chromelessSrc.getHeight(), false);
+                        int[] pixels = chromelessSrc.getPixels();
+                        for (int y = 0; y < chromelessSrc.getHeight(); y++) {
+                                float t = y / (float) Math.max(1, chromelessSrc.getHeight() - 1);
+                                int color = Colors.lerp(c3, c1, t) & 0xFFFFFF;
+                                int tr = (color >> 16) & 255, tg = (color >> 8) & 255, tb = color & 255;
+                                for (int x = 0; x < chromelessSrc.getWidth(); x++) {
+                                        int p = pixels[y * chromelessSrc.getWidth() + x];
+                                        int alpha = (p >>> 24) & 255;
+                                        // PNG is white/grayscale with alpha. Preserve antialiased edges.
+                                        image.setPixelABGR(x, y, (alpha << 24) | (tb << 16) | (tg << 8) | tr);
+                                }
+                        }
+                        mc.getTextureManager().register(SMOOTH_ID,
+                                new DynamicTexture(() -> "drainer_chromeless", image));
+                        smoothTheme1 = c1;
+                        smoothTheme3 = c3;
                         smoothLoaded = true;
                 } catch (Throwable t) {
+                        smoothLoaded = false;
                         t.printStackTrace();
                 }
         }
@@ -346,7 +354,7 @@ private static int tintColour(int tint, float t) {
                 double angle
         ) {
                 ensureSmooth();
-                if (!smoothLoaded || src == null) return;
+                if (!smoothLoaded || chromelessSrc == null) return;
 
                 // Continuous horizontal projection, without integer-width jumps.
                 float projection = (float) Math.cos(angle);
@@ -375,8 +383,8 @@ private static int tintColour(int tint, float t) {
                                 0,
                                 0f, 0f,
                                 width, height,
-                                src.getWidth(), src.getHeight(),
-                                src.getWidth(), src.getHeight()
+                                chromelessSrc.getWidth(), chromelessSrc.getHeight(),
+                                chromelessSrc.getWidth(), chromelessSrc.getHeight()
                         );
                 } finally {
                         pose.popMatrix();

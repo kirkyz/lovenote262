@@ -1,0 +1,124 @@
+$ErrorActionPreference = "Stop"
+
+$logoPath = "src/main/java/com/lovenote/util/Logos.java"
+$uiPath = "src/main/java/meteordevelopment/meteorclient/gui/screens/LovenoteModulesScreen.java"
+
+$logo = [IO.File]::ReadAllText($logoPath)
+$ui = [IO.File]::ReadAllText($uiPath)
+
+# Validate before changing anything.
+if (!$logo.Contains("public static final int CELL = 128;")) {
+    throw "Logo renderer differs from expected. Nothing changed."
+}
+
+if (!$ui.Contains("cx + (cw - 76) / 2")) {
+    throw "Centre logo marker missing. Nothing changed."
+}
+
+if (!$ui.Contains("ctx, sx + 7, wy + 8, 36, logoAngle, 0")) {
+    throw "Sidebar logo marker missing. Nothing changed."
+}
+
+Copy-Item $logoPath "$logoPath.before-wide-drainer"
+Copy-Item $uiPath "$uiPath.before-wide-drainer"
+
+# Increase atlas cell resolution so the logo is sharper.
+$logo = $logo.Replace(
+    "public static final int CELL = 128;",
+    "public static final int CELL = 256;"
+)
+
+# Add a wide-image drawing overload.
+$marker = "public static boolean imageAvailable()"
+
+$method = @'
+        public static void drawWide(
+                GuiGraphicsExtractor g,
+                int x, int y,
+                int width, int height,
+                double angle
+        ) {
+                ensure(IMAGE_STYLE, tintMode);
+
+                int f = (int) Math.floor(
+                        (angle / (Math.PI * 2)) * FRAMES
+                ) % FRAMES;
+
+                if (f < 0) f += FRAMES;
+
+                Gfx.blit(
+                        g, ID,
+                        x, y,
+                        f * (float) CELL, 0f,
+                        width, height,
+                        CELL, CELL,
+                        CELL * FRAMES, CELL
+                );
+        }
+
+'@
+
+if (!$logo.Contains($marker)) {
+    throw "Insertion marker missing. Nothing saved."
+}
+
+$logo = $logo.Replace($marker, $method + $marker)
+
+# Update the centre logo.
+$ui = $ui.Replace(
+    "com.lovenote.util.Logos.draw(",
+    "com.lovenote.util.Logos.draw("
+)
+
+$oldCentre = @'
+            com.lovenote.util.Logos.draw(
+                ctx,
+                cx + (cw - 76) / 2,
+                wy + 1,
+                76,
+                headerLogoAngle,
+                0
+            );
+'@
+
+$newCentre = @'
+            com.lovenote.util.Logos.drawWide(
+                ctx,
+                cx + (cw - 220) / 2,
+                wy + 7,
+                220,
+                65,
+                headerLogoAngle
+            );
+'@
+
+if (!$ui.Contains($oldCentre)) {
+    throw "Centre logo block differs. Nothing saved."
+}
+
+$ui = $ui.Replace($oldCentre, $newCentre)
+
+$oldSide = @'
+            com.lovenote.util.Logos.draw(
+                ctx, sx + 7, wy + 8, 36, logoAngle, 0
+            );
+'@
+
+$newSide = @'
+            com.lovenote.util.Logos.drawWide(
+                ctx, sx + 6, wy + 10, 90, 30, logoAngle
+            );
+'@
+
+if (!$ui.Contains($oldSide)) {
+    throw "Sidebar logo block differs. Nothing saved."
+}
+
+$ui = $ui.Replace($oldSide, $newSide)
+
+$utf8 = New-Object System.Text.UTF8Encoding($false)
+
+[IO.File]::WriteAllText($logoPath, $logo, $utf8)
+[IO.File]::WriteAllText($uiPath, $ui, $utf8)
+
+Write-Host "SUCCESS: Wide DRAINER logo renderer installed."

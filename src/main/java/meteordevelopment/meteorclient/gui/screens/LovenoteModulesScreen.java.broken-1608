@@ -1,0 +1,239 @@
+
+package com.lovenote.module.impl;
+
+import com.lovenote.module.Category;
+import com.lovenote.module.Module;
+import com.lovenote.setting.BoolSetting;
+import com.lovenote.setting.ModeSetting;
+import com.lovenote.setting.NumberSetting;
+import com.lovenote.util.Colors;
+import com.lovenote.util.Gfx;
+import com.lovenote.util.Logos;
+import com.lovenote.util.Ui;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+
+public class LogoWidget extends Module {
+
+    private final ModeSetting style = add(
+        new ModeSetting("Logo", "Image", Logos.STYLES)
+    );
+
+    private final NumberSetting size = add(
+        new NumberSetting("Logo size", 32, 6, 96, 1)
+    );
+
+    private final NumberSetting spin = add(
+        new NumberSetting("Spin speed", 1.0, 0.0, 6.0, 0.05)
+    );
+
+    private final ModeSetting spinMode = add(
+        new ModeSetting(
+            "Spin", "Spin",
+            "Spin", "Pulse", "Spin + Pulse", "Static"
+        )
+    );
+
+    private final NumberSetting x = add(
+        new NumberSetting("X", 0.012, 0.0, 0.95, 0.002)
+    );
+
+    private final NumberSetting y = add(
+        new NumberSetting("Y", 0.012, 0.0, 0.95, 0.002)
+    );
+
+    private final BoolSetting frame = add(
+        new BoolSetting("Frame", false)
+    );
+
+    private final NumberSetting pad = add(
+        new NumberSetting("Padding", 4, 1, 16, 1)
+    );
+
+    private final BoolSetting showName = add(
+        new BoolSetting("Show name", false)
+    );
+
+    private final ModeSetting nameText = add(
+        new ModeSetting(
+            "Name", "lovenote",
+            "lovenote", "Lovenote", "Custom"
+        )
+    );
+
+    private final ModeSetting customName = add(
+        new ModeSetting("Custom", "lovenote", "lovenote", "Custom")
+    );
+
+    private final ModeSetting nameColour = add(
+        new ModeSetting(
+            "Name colour", "Gradient",
+            "Gradient", "Accent", "White"
+        )
+    );
+
+    private final BoolSetting info = add(
+        new BoolSetting("Show info", false)
+    );
+
+    private final BoolSetting showFps = add(
+        new BoolSetting("FPS", true)
+    );
+
+    private final BoolSetting showTime = add(
+        new BoolSetting("Time", true)
+    );
+
+    private final BoolSetting showServer = add(
+        new BoolSetting("Server", false)
+    );
+
+    private final NumberSetting gap = add(
+        new NumberSetting("Gap", 5, 0, 24, 1)
+    );
+
+    public LogoWidget() {
+        super("LogoWidget", Category.HUD);
+        describe("DRAINER HUD logo with adjustable rotation.");
+    }
+
+    private String label() {
+        return nameText.is("Custom")
+            ? customName.get()
+            : nameText.get();
+    }
+
+    @Override
+    public void onHud(GuiGraphicsExtractor g, float td) {
+        if (mc.player == null) return;
+
+        Logos.setStyle(style.index());
+        Ui.push(Interface.INSTANCE);
+
+        int px = (int) (x.get() * Gfx.guiW());
+        int py = (int) (y.get() * Gfx.guiH());
+
+        // Use double precision for smooth timing.
+        double seconds = System.nanoTime() / 1_000_000_000.0;
+
+        double angle = 0.0;
+
+        if (spinMode.is("Spin") || spinMode.is("Spin + Pulse")) {
+            // Speed 1.0 = one full revolution per second.
+            // Modulo keeps the angle bounded.
+            double revolutions = (seconds * spin.get()) % 1.0;
+            angle = revolutions * Math.PI * 2.0;
+        }
+
+        int sz = size.getI();
+
+        if (spinMode.is("Pulse") || spinMode.is("Spin + Pulse")) {
+            double pulse = 0.95 + 0.05 * Math.sin(seconds * 2.2);
+            sz = Math.max(1, (int) Math.round(sz * pulse));
+        }
+
+        String name = label();
+        String infoStr = info.get() ? buildInfo() : "";
+
+        int nameW = showName.get() ? Ui.textW(name) : 0;
+        int infoW = infoStr.isEmpty() ? 0 : Ui.textW(infoStr);
+
+        int inner = sz;
+
+        if (nameW > 0) {
+            inner += gap.getI() + nameW;
+        }
+
+        if (infoW > 0) {
+            inner += gap.getI() + infoW;
+        }
+
+        int p = pad.getI();
+        int bw = inner + p * 2;
+        int bh = Math.max(sz, 11) + p * 2;
+
+        px = Math.max(
+            0,
+            Math.min(px, Math.max(0, Gfx.guiW() - bw - 2))
+        );
+
+        py = Math.max(
+            0,
+            Math.min(py, Math.max(0, Gfx.guiH() - bh - 2))
+        );
+
+        if (frame.get()) {
+            Ui.pill(g, px, py, bw, bh);
+        }
+
+        int tx = px + p;
+
+        Logos.draw(
+            g,
+            tx,
+            py + (bh - sz) / 2,
+            sz,
+            angle,
+            style.index()
+        );
+
+        tx += sz + gap.getI();
+
+        if (showName.get()) {
+            int col = nameColour.is("White")
+                ? 0xFFFFFFFF
+                : nameColour.is("Accent")
+                    ? Colors.C1
+                    : Colors.skeet((float) ((seconds * 0.25) % 1.0));
+
+            Ui.text(
+                g,
+                name,
+                tx,
+                py + (bh - 8) / 2,
+                col
+            );
+
+            tx += nameW + gap.getI();
+        }
+
+        if (infoW > 0) {
+            Ui.text(
+                g,
+                infoStr,
+                tx,
+                py + (bh - 8) / 2,
+                Ui.textDim
+            );
+        }
+    }
+
+    private String buildInfo() {
+        StringBuilder sb = new StringBuilder();
+
+        if (showFps.get()) {
+            sb.append(mc.getFps()).append(" fps");
+        }
+
+        if (showTime.get()) {
+            if (sb.length() > 0) sb.append("  ");
+
+            long secs =
+                (System.currentTimeMillis() / 1000L) % 86400L;
+
+            sb.append(
+                String.format(
+                    "%02d:%02d",
+                    secs / 3600,
+                    (secs % 3600) / 60
+                )
+            );
+        }
+
+        if (showServer.get() && mc.getCurrentServer() != null) {
+            if (sb.length() > 0) sb.append("  ");
+            sb.append(mc.getCurrentServer().ip);
+        }
+
+        return sb.toString();
+    }
+}

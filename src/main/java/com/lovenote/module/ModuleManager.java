@@ -1,5 +1,7 @@
 package com.lovenote.module;
 
+import com.lovenote.module.impl.*;
+
 import com.lovenote.module.impl.GroundFog;
 import com.lovenote.module.impl.SkyShader;
 import com.lovenote.module.impl.SwingAnimation;
@@ -186,6 +188,7 @@ public class ModuleManager {
 		register(new ChestTracker());
 		register(new InterfaceModule());
 		register(new Watermark());
+		register(new DrainerInfoBar());
 		register(new SpotifyHud());
 		register(new Lyrics());
 		register(new StaffList());

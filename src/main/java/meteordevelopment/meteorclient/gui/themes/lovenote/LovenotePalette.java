@@ -6,7 +6,7 @@ import net.minecraft.util.Mth;
 public final class LovenotePalette {
     private LovenotePalette() {}
 
-    public static int C1 = 0xFFFF9ACB, C2 = 0xFFD97BC0, C3 = 0xFFB28DFF;
+    public static int C1 = 0xFFB89AFF, C2 = 0xFF8D65E8, C3 = 0xFFE2D5FF;
     public static boolean animated = true;
     public static boolean dark = true;
 
@@ -41,14 +41,14 @@ public final class LovenotePalette {
         C2 = lerp(C1, C3, 0.5f);
     }
 
-    public static int bg()        { return dark ? 0x101015 : 0xF2F2F6; }
-    public static int card()      { return dark ? 0xFF17171E : 0xFFFFFFFF; }
-    public static int cardHover() { return dark ? 0xFF1D1D26 : 0xFFF4F4F9; }
-    public static int text()      { return dark ? 0xFFE8E8F0 : 0xFF1A1A22; }
-    public static int dim()       { return dark ? 0xFF8A8A9A : 0xFF6A6A78; }
-    public static int faint()     { return dark ? 0xFF5E5E70 : 0xFF9A9AA8; }
-    public static int track()     { return dark ? 0xFF2A2A36 : 0xFFDADAE4; }
-    public static int chip()      { return dark ? 0xFF24242E : 0xFFE6E6EE; }
+    public static int bg()        { return dark ? 0x0D0A16 : 0xF2F2F6; }
+    public static int card()      { return dark ? 0xFF171125 : 0xFFFFFFFF; }
+    public static int cardHover() { return dark ? 0xFF241A38 : 0xFFF4F4F9; }
+    public static int text()      { return dark ? 0xFFF1EBFF : 0xFF1A1A22; }
+    public static int dim()       { return dark ? 0xFFA99BC3 : 0xFF6A6A78; }
+    public static int faint()     { return dark ? 0xFF82749F : 0xFF9A9AA8; }
+    public static int track()     { return dark ? 0xFF39294F : 0xFFDADAE4; }
+    public static int chip()      { return dark ? 0xFF2A203D : 0xFFE6E6EE; }
 
     public static int alpha(int c, int a) {
         return (Mth.clamp(a, 0, 255) << 24) | (c & 0xFFFFFF);

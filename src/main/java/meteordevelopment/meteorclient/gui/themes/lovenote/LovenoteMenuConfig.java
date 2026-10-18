@@ -4,13 +4,13 @@ package meteordevelopment.meteorclient.gui.themes.lovenote;
 public final class LovenoteMenuConfig {
     private LovenoteMenuConfig() {}
 
-    public static int menuScale = 65;
-    public static int windowWidth = 600;
-    public static int windowHeight = 372;
-    public static int corner = 10;
-    public static int railWidth = 118;
+    public static int menuScale = 75;
+    public static int windowWidth = 760;
+    public static int windowHeight = 430;
+    public static int corner = 12;
+    public static int railWidth = 132;
     public static boolean railRight = false;
-    public static int columns = 2;
+    public static int columns = 1;
     public static boolean compact = false;
     public static boolean descriptions = true;
     public static boolean footer = true;
@@ -21,10 +21,10 @@ public final class LovenoteMenuConfig {
     public static int logoSize = 26;
     public static long logoSpin = 2600L;
 
-    public static String style = "Classic";
+    public static String style = "Premium";
     public static String cardStyle = "Solid";
     public static int opacity = 100;
-    public static int glow = 5;
+    public static int glow = 7;
     public static boolean shadow = true;
     public static boolean headerLine = true;
     public static boolean sheen = true;

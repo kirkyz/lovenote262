@@ -1,0 +1,95 @@
+package com.lovenote.spotify;
+
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import net.fabricmc.loader.api.FabricLoader;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
+
+/** Windows media-session bridge for Drainer. No Spotify API key required. */
+public final class SpotifyManager {
+    public static final SpotifyManager I = new SpotifyManager();
+    public volatile String title = "", artist = "", album = "", status = "Starting bridge";
+    public volatile boolean connected, hasTrack, playing;
+    public volatile long progressMs, durationMs, progressStamp;
+    private volatile boolean started;
+    private SpotifyManager() {}
+
+    private Path helper() {
+        Path cfg = FabricLoader.getInstance().getConfigDir().toAbsolutePath().normalize();
+        Path[] paths = {cfg.resolve("lovenote-media-bridge.exe"),
+                cfg.resolve("drainer-media-bridge.exe"),
+                Path.of(System.getProperty("user.dir", "."), "config", "lovenote-media-bridge.exe")};
+        for (Path p : paths) if (Files.isRegularFile(p)) return p;
+        return paths[0];
+    }
+
+    public synchronized void start() {
+        if (started) return;
+        started = true;
+        Thread t = new Thread(() -> {
+            while (!Thread.currentThread().isInterrupted()) {
+                try { poll(); Thread.sleep(2500); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                catch (Exception e) { connected = false; hasTrack = false; status = "Bridge error: " + e.getMessage();
+                    try { Thread.sleep(2500); } catch (InterruptedException x) { Thread.currentThread().interrupt(); } }
+            }
+        }, "Drainer-Spotify-Poll");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private JsonObject execute(String... args) throws Exception {
+        Path exe = helper();
+        if (!Files.isRegularFile(exe)) throw new IllegalStateException("EXE missing: " + exe);
+        String[] command = new String[args.length + 1];
+        command[0] = exe.toString();
+        System.arraycopy(args, 0, command, 1, args.length);
+        Process p = new ProcessBuilder(command).redirectErrorStream(true).start();
+        String line;
+        try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
+            line = r.readLine();
+        }
+        if (!p.waitFor(8, TimeUnit.SECONDS)) { p.destroyForcibly(); throw new IllegalStateException("Helper timeout"); }
+        if (line == null || !line.startsWith("{")) throw new IllegalStateException("Invalid helper response");
+        JsonObject result = JsonParser.parseString(line).getAsJsonObject();
+        if (result.has("error")) throw new IllegalStateException(result.get("error").getAsString());
+        return result;
+    }
+
+    private static String str(JsonObject o, String key) {
+        return o.has(key) && !o.get(key).isJsonNull() ? o.get(key).getAsString() : "";
+    }
+    private void poll() throws Exception {
+        JsonObject o = execute();
+        connected = true;
+        if (!o.has("found") || !o.get("found").getAsBoolean()) {
+            hasTrack = false; status = "Open Spotify and play a track"; return;
+        }
+        title = str(o, "title"); artist = str(o, "artist"); album = str(o, "album");
+        playing = o.has("playing") && o.get("playing").getAsBoolean();
+        progressMs = o.has("progressMs") ? o.get("progressMs").getAsLong() : 0;
+        durationMs = o.has("durationMs") ? o.get("durationMs").getAsLong() : 0;
+        progressStamp = System.currentTimeMillis();
+        hasTrack = !title.isBlank();
+        status = hasTrack ? "Connected" : "No track available";
+    }
+    public long progress() {
+        long p = progressMs + (playing ? Math.max(0, System.currentTimeMillis() - progressStamp) : 0);
+        return Math.max(0, durationMs > 0 ? Math.min(durationMs, p) : p);
+    }
+    private void command(String... args) {
+        Thread t = new Thread(() -> { try { execute(args); poll(); }
+            catch (Exception e) { status = "Control error: " + e.getMessage(); } }, "Drainer-Media-Control");
+        t.setDaemon(true); t.start();
+    }
+    public void togglePlay() { command("toggle"); }
+    public void next() { command("next"); }
+    public void previous() { command("previous"); }
+    public void seek(long ms) { command("seek", Long.toString(ms)); }
+}
