@@ -1,0 +1,23 @@
+{
+  "required": true,
+  "package": "com.lovenote.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "BackgroundRendererMixin",
+    "ClientPlayerInteractionManagerMixin",
+    "ClientPlayNetworkHandlerMixin",
+    "ClientWorldMixin",
+    "HeldItemRendererMixin",
+    "InGameHudMixin",
+    "LivingEntityAccessor",
+    "LivingEntityMixin",
+    "LivingEntityRendererMixin",
+    "MinecraftClientAccessor",
+    "PlayerListHudMixin",
+    "RenderSystemMixin",
+    "WorldRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

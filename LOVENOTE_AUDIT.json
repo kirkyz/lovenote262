@@ -1,0 +1,32 @@
+{
+  "registered_custom_modules": [
+    "GroundFog",
+    "SkyShader",
+    "Interface",
+    "LogoWidget",
+    "FunnyCrosshair",
+    "SkyExtras",
+    "CubeField",
+    "CrystalHalo",
+    "AuroraVeil",
+    "NeonGrid",
+    "RibbonTrail",
+    "StarSphere",
+    "SparkBurst",
+    "PrismOrb",
+    "Vortex",
+    "PlasmaShell",
+    "ArcBeams",
+    "PrismRain",
+    "Velocity",
+    "SwingAnimation",
+    "AutoSprint",
+    "AutoJump"
+  ],
+  "unregistered_custom_java_files": [
+    "Notifications"
+  ],
+  "custom_module_count": 22,
+  "build_verified": false,
+  "runtime_verified": false
+}

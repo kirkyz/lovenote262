@@ -1,0 +1,16 @@
+/saves/
+/data/
+/downloads/
+/options.txt
+/usercache.json
+/servers.dat
+/logs/
+/crash-reports/
+/screenshots/
+*.wav
+s[0-9]*.png
+shot.png
+/build/
+/.gradle/
+/run/
+/lovenote262/

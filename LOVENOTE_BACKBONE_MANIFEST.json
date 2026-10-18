@@ -1,0 +1,972 @@
+{
+  "old_registered_count": 162,
+  "previous_custom_class_count": 27,
+  "new_placeholder_count": 152,
+  "old_names_already_in_new_custom_code": [
+    "AntiAFK",
+    "AutoJump",
+    "AutoSell",
+    "AutoTip",
+    "GroundFog",
+    "Notifications",
+    "Panic",
+    "SkyShader",
+    "SwingAnimation",
+    "Velocity"
+  ],
+  "unported_placeholders": [
+    {
+      "name": "Aura",
+      "category": "COMBAT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "KillAura",
+      "category": "COMBAT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AimAssist",
+      "category": "COMBAT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Triggerbot",
+      "category": "COMBAT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Criticals",
+      "category": "COMBAT",
+      "alsoIn": [
+        "HYPIXEL"
+      ],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "WTap",
+      "category": "COMBAT",
+      "alsoIn": [
+        "HYPIXEL"
+      ],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AutoClicker",
+      "category": "COMBAT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AutoTotem",
+      "category": "COMBAT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AutoArmor",
+      "category": "COMBAT",
+      "alsoIn": [
+        "DONUT"
+      ],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AutoCrystal",
+      "category": "COMBAT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "CrystalTap",
+      "category": "COMBAT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "CrystalBreak",
+      "category": "COMBAT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Backtrack",
+      "category": "COMBAT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "TargetStrafe",
+      "category": "COMBAT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AutoWeb",
+      "category": "COMBAT",
+      "alsoIn": [
+        "HYPIXEL"
+      ],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Reach",
+      "category": "COMBAT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Surround",
+      "category": "COMBAT",
+      "alsoIn": [
+        "HYPIXEL"
+      ],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AutoTrap",
+      "category": "COMBAT",
+      "alsoIn": [
+        "HYPIXEL"
+      ],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AutoCity",
+      "category": "COMBAT",
+      "alsoIn": [
+        "HYPIXEL"
+      ],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "OldCombat",
+      "category": "COMBAT",
+      "alsoIn": [
+        "HYPIXEL"
+      ],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AutoFarm",
+      "category": "HYPIXEL",
+      "alsoIn": [
+        "DONUT"
+      ],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AutoFish",
+      "category": "HYPIXEL",
+      "alsoIn": [
+        "DONUT"
+      ],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "CommandMacro",
+      "category": "HYPIXEL",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "ServerInfo",
+      "category": "HYPIXEL",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "StaffDetector",
+      "category": "HYPIXEL",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AntiBot",
+      "category": "HYPIXEL",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AutoPotion",
+      "category": "HYPIXEL",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AutoGApple",
+      "category": "HYPIXEL",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AutoTool",
+      "category": "HYPIXEL",
+      "alsoIn": [
+        "DONUT"
+      ],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AutoLog",
+      "category": "HYPIXEL",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AutoRespawn",
+      "category": "HYPIXEL",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Sprint",
+      "category": "MOVEMENT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Speed",
+      "category": "MOVEMENT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Flight",
+      "category": "MOVEMENT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Bhop",
+      "category": "MOVEMENT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AirJump",
+      "category": "MOVEMENT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Parkour",
+      "category": "MOVEMENT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Scaffold",
+      "category": "MOVEMENT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "NoFall",
+      "category": "MOVEMENT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AntiVoid",
+      "category": "MOVEMENT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Step",
+      "category": "MOVEMENT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "NoSlow",
+      "category": "MOVEMENT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "FastFall",
+      "category": "MOVEMENT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "ElytraPlus",
+      "category": "MOVEMENT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "ToggleSprint",
+      "category": "PLAYER",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AntiHunger",
+      "category": "PLAYER",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "FastLadder",
+      "category": "PLAYER",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "ESP",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "ItemESP",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Glow",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Chams",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Tracers",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "TargetESP",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Wings",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "JumpCircles",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Trail",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Orbit",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "HitParticles",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "KillEffects",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "PopEffects",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AmbientParticles",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "HitMarker",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "HitSound",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "TimeChanger",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Fullbright",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Zoom",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Freelook",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "ParticleField",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "CustomParticles",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "GroundRings",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "TrailRibbon",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "GhostTrail",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Halo",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Nebula",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Shockwave",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "DamageIndicator",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "WorldTint",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "StorageESP",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "HoleESP",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "BlockESP",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Nametags",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Trajectories",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "ScreenFX",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "CustomCrosshair",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Bloom",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Beams",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "BlockHighlight",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Waypoints",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Aurora",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Starfield",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "SunGlow",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Vignette",
+      "category": "VISUALS",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Fog",
+      "category": "RENDER",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "RenderDistance",
+      "category": "RENDER",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Clouds",
+      "category": "RENDER",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "GraphicsMode",
+      "category": "RENDER",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Particles",
+      "category": "RENDER",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "BiomeBlend",
+      "category": "RENDER",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "EntityShadows",
+      "category": "RENDER",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "MaxFps",
+      "category": "RENDER",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "ChatOpacity",
+      "category": "RENDER",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Weather",
+      "category": "RENDER",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "SmoothCamera",
+      "category": "RENDER",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "FovOverride",
+      "category": "RENDER",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "NoViewBob",
+      "category": "RENDER",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AutoBuy",
+      "category": "DONUT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "ChestStealer",
+      "category": "DONUT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "SpawnerESP",
+      "category": "DONUT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "LootBeam",
+      "category": "DONUT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AutoReconnect",
+      "category": "DONUT",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "FastUse",
+      "category": "MISC",
+      "alsoIn": [
+        "HYPIXEL"
+      ],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "NoJumpDelay",
+      "category": "MISC",
+      "alsoIn": [
+        "HYPIXEL"
+      ],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "SafeWalk",
+      "category": "MISC",
+      "alsoIn": [
+        "HYPIXEL"
+      ],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AutoPearl",
+      "category": "MISC",
+      "alsoIn": [
+        "HYPIXEL"
+      ],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AntiLevitation",
+      "category": "MISC",
+      "alsoIn": [
+        "HYPIXEL"
+      ],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AutoJumpReset",
+      "category": "MISC",
+      "alsoIn": [
+        "HYPIXEL"
+      ],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AutoAnchor",
+      "category": "MISC",
+      "alsoIn": [
+        "HYPIXEL"
+      ],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "PlayerTracker",
+      "category": "MISC",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "KillCounter",
+      "category": "MISC",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "DeathCoords",
+      "category": "MISC",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AutoGG",
+      "category": "MISC",
+      "alsoIn": [
+        "DONUT"
+      ],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "ChestTracker",
+      "category": "MISC",
+      "alsoIn": [
+        "DONUT"
+      ],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "InterfaceModule",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Watermark",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "SpotifyHud",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Lyrics",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "StaffList",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "TargetHud",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "SpeedWidget",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Coordinates",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "KeybindsWidget",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "PotionsWidget",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "CooldownsWidget",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "InventoryWidget",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Keystrokes",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Radar",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "ModuleList",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "HitLog",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "InfoHud",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "PotionList",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "ArmorHud",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "CpsHud",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "CoordsHud",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "PingHud",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "TabList",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "ComboCounter",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "Compass",
+      "category": "HUD",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "FastPlace",
+      "category": "MISC",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "FakePlayer",
+      "category": "MISC",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "AutoEat",
+      "category": "MISC",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "MiddleClick",
+      "category": "MISC",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    },
+    {
+      "name": "ChatSuffix",
+      "category": "MISC",
+      "alsoIn": [],
+      "status": "placeholder_disabled_no_behavior"
+    }
+  ],
+  "warning": "No claim of runtime functionality or clean Java 25 build. Original source retained under legacy-1.21-reference for porting."
+}

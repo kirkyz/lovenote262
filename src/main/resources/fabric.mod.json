@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "name": "lovenote",
+  "id": "lovenote262",
+  "version": "${version}",
+  "description": "lovenote - a frosted-glass utility client.",
+  "authors": [],
+  "contact": {
+    "homepage": "https://github.com/kirkyz/lovenote262",
+    "issues": "https://github.com/MeteorDevelopment/lovenote262/issues",
+    "sources": "https://github.com/MeteorDevelopment/lovenote262",
+    "discord": "https://meteorclient.com/discord"
+  },
+  "license": "GPL-3.0",
+  "icon": "assets/lovenote262/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "meteordevelopment.meteorclient.MeteorClient",
+      "com.lovenote.Lovenote"
+    ],
+    "modmenu": [
+      "meteordevelopment.meteorclient.modintegration.ModMenuIntegration"
+    ]
+  },
+  "mixins": [
+    "lovenote262.mixins.json",
+    "lovenote262-baritone.mixins.json",
+    "lovenote262-indigo.mixins.json",
+    "lovenote262-sodium.mixins.json",
+    "lovenote262-lithium.mixins.json",
+    "lovenote262-viafabricplus.mixins.json"
+  ],
+  "accessWidener": "lovenote262.classtweaker",
+  "custom": {
+    "lovenote262:build_number": "${build_number}",
+    "lovenote262:color": "255,122,200",
+    "lovenote262:commit": "${commit}",
+    "modmenu": {
+      "links": {
+        "modmenu.discord": "https://meteorclient.com/discord"
+      }
+    },
+    "badoptimizations:cache_hooks": {
+      "lightmap": "meteordevelopment.meteorclient.modintegration.BadOptimizationsHook"
+    }
+  },
+  "depends": {
+    "java": ">=${jdk_version}",
+    "minecraft": "${minecraft_version}",
+    "fabricloader": ">=${loader_version}"
+  },
+  "breaks": {
+    "optifabric": "*",
+    "feather": "*",
+    "origins": "*",
+    "sodium": "<0.9.1",
+    "morechathistory": "*",
+    "lithium": "<0.22.1"
+  }
+}
