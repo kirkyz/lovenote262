@@ -15,8 +15,10 @@ import java.io.InputStream;
 public final class Logos {
 	private Logos() {}
 
-	public static final int CELL = 64;
-	public static final int FRAMES = 24;
+	public static final int CELL = 128;
+        public static final int IMAGE_W = 256;
+        public static final int IMAGE_H = 96;
+	public static final int FRAMES = 32;
 	public static final String[] STYLES = {
 			"Image", "Heart", "Monogram", "Star", "Crystal", "Infinity", "Sparkle", "Crown", "Wing"
 	};
@@ -25,9 +27,9 @@ public final class Logos {
 
 	private static final Identifier ID = Identifier.fromNamespaceAndPath("lovenote", "gen/logo");
 
-	public static float cropTop = 0.24f, cropBottom = 0f, zoom = 1f;
-	public static boolean keyBlack = true;
-	public static int tintMode = 0;
+	public static float cropTop = 0f, cropBottom = 0f, zoom = 1f;
+	public static boolean keyBlack = false;
+	public static int tintMode = 3;
 
 	private static NativeImage src;
 	private static boolean srcTried;
@@ -112,62 +114,115 @@ public final class Logos {
 		}
 	}
 
-	private static NativeImage bakeImage(int tint) {
-		int sw = src.getWidth(), sh = src.getHeight();
-		int[] pix = src.getPixels();
-		int y0 = (int) (sh * Math.max(0f, Math.min(0.8f, cropTop)));
-		int y1 = (int) (sh * (1f - Math.max(0f, Math.min(0.8f, cropBottom))));
-		int ch = Math.max(1, y1 - y0);
+	        private static NativeImage bakeImage(int tint) {
+                int sw = src.getWidth(), sh = src.getHeight();
+                int[] pix = src.getPixels();
 
-		double diag = Math.sqrt((double) sw * sw + (double) ch * ch);
-		double k = CELL / diag * Math.max(0.2f, zoom);
-		int cy = y0 + ch / 2;
+                int y0 = (int) (sh * Math.max(0f, Math.min(0.8f, cropTop)));
+                int y1 = (int) (sh * (1f - Math.max(0f, Math.min(0.8f, cropBottom))));
 
-		NativeImage img = new NativeImage(CELL * FRAMES, CELL, false);
-		int c1 = tintColour(tint, 0f), c3 = tintColour(tint, 1f);
+                int minX = sw, maxX = -1, minY = sh, maxY = -1;
 
-		for (int f = 0; f < FRAMES; f++) {
-			double ang = f * Math.PI * 2 / FRAMES;
-			double ca = Math.cos(ang), sa = Math.sin(ang);
+                for (int yy = y0; yy < y1; yy++) {
+                        for (int xx = 0; xx < sw; xx++) {
+                                int alpha = (pix[yy * sw + xx] >>> 24) & 255;
+                                if (alpha > 12) {
+                                        minX = Math.min(minX, xx);
+                                        maxX = Math.max(maxX, xx);
+                                        minY = Math.min(minY, yy);
+                                        maxY = Math.max(maxY, yy);
+                                }
+                        }
+                }
 
-			for (int py = 0; py < CELL; py++) {
-				for (int px = 0; px < CELL; px++) {
-					int accA = 0, accR = 0, accG = 0, accB = 0, hits = 0;
-					for (int sy = 0; sy < 3; sy++) {
-						for (int sx = 0; sx < 3; sx++) {
-							double ox = px + (sx + 0.5) / 3.0 - CELL * 0.5;
-							double oy = py + (sy + 0.5) / 3.0 - CELL * 0.5;
-							double ux = ox * ca + oy * sa;
-							double uy = -ox * sa + oy * ca;
-							int sxp = (int) (ux / k + sw * 0.5);
-							int syp = (int) (uy / k + cy);
-							if (sxp < 0 || syp < y0 || sxp >= sw || syp >= y1) continue;
-							int v = pix[syp * sw + sxp];
-							int a = (v >>> 24) & 255;
-							int b = (v >>> 16) & 255;
-							int g = (v >>> 8) & 255;
-							int r = v & 255;
-							if (keyBlack) a = Math.min(a, (r * 30 + g * 59 + b * 11) / 100);
-							accA += a; accR += r; accG += g; accB += b; hits++;
-						}
-					}
-					if (hits == 0) { img.setPixelABGR(px + f * CELL, py, 0); continue; }
-					int a = accA / hits;
-					if (a <= 0) { img.setPixelABGR(px + f * CELL, py, 0); continue; }
+                if (maxX < minX) {
+                        minX = 0;
+                        maxX = sw - 1;
+                        minY = y0;
+                        maxY = Math.max(y0, y1 - 1);
+                }
 
-					int col;
-					if (tint == 3) col = ((accR / hits) << 16) | ((accG / hits) << 8) | (accB / hits);
-					else col = Colors.lerp(c1, c3, py / (float) (CELL - 1)) & 0xFFFFFF;
+                int artW = Math.max(1, maxX - minX + 1);
+                int artH = Math.max(1, maxY - minY + 1);
 
-					img.setPixelABGR(px + f * CELL, py,
-							argb(a, (col >> 16) & 255, (col >> 8) & 255, col & 255));
-				}
-			}
-		}
-		return img;
-	}
+                double scale = Math.min(
+                        (IMAGE_W - 8.0) / artW,
+                        (IMAGE_H - 6.0) / artH
+                ) * Math.max(0.2f, zoom);
 
-	private static int tintColour(int tint, float t) {
+                double midX = (minX + maxX + 1) * 0.5;
+                double midY = (minY + maxY + 1) * 0.5;
+
+                NativeImage img = new NativeImage(
+                        IMAGE_W * FRAMES, IMAGE_H, false
+                );
+
+                int c1 = tintColour(tint, 0f);
+                int c3 = tintColour(tint, 1f);
+
+                for (int f = 0; f < FRAMES; f++) {
+                        double angle = f * Math.PI * 2.0 / FRAMES;
+                        double face = Math.cos(angle);
+                        double projectedWidth = Math.max(0.025, Math.abs(face));
+                        double light = (0.72 + 0.28 * Math.abs(face))
+                                * (face < 0 ? 0.85 : 1.0);
+
+                        for (int py = 0; py < IMAGE_H; py++) {
+                                for (int px = 0; px < IMAGE_W; px++) {
+                                        double ux = (px + 0.5 - IMAGE_W * 0.5)
+                                                / (scale * projectedWidth);
+                                        double uy = (py + 0.5 - IMAGE_H * 0.5)
+                                                / scale;
+
+                                        int sxp = (int) Math.floor(
+                                                midX + ux * (face < 0 ? -1 : 1)
+                                        );
+                                        int syp = (int) Math.floor(midY + uy);
+
+                                        if (sxp < minX || sxp > maxX
+                                                || syp < minY || syp > maxY) {
+                                                img.setPixelABGR(
+                                                        px + f * IMAGE_W, py, 0
+                                                );
+                                                continue;
+                                        }
+
+                                        int v = pix[syp * sw + sxp];
+                                        int alpha = (v >>> 24) & 255;
+                                        int b = (v >>> 16) & 255;
+                                        int g = (v >>> 8) & 255;
+                                        int r = v & 255;
+
+                                        if (keyBlack) {
+                                                alpha = Math.min(
+                                                        alpha,
+                                                        (r * 30 + g * 59 + b * 11) / 100
+                                                );
+                                        }
+
+                                        int col = tint == 3
+                                                ? (r << 16) | (g << 8) | b
+                                                : Colors.lerp(
+                                                        c1, c3,
+                                                        py / (float) (IMAGE_H - 1)
+                                                ) & 0xFFFFFF;
+
+                                        int rr = (int) (((col >> 16) & 255) * light);
+                                        int gg = (int) (((col >> 8) & 255) * light);
+                                        int bb = (int) ((col & 255) * light);
+
+                                        img.setPixelABGR(
+                                                px + f * IMAGE_W, py,
+                                                argb(alpha, rr, gg, bb)
+                                        );
+                                }
+                        }
+                }
+
+                return img;
+        }
+
+private static int tintColour(int tint, float t) {
 		if (tint == 1) return 0xFFFFFF;
 		if (tint == 2) return Colors.rainbow(t) & 0xFFFFFF;
 		return Colors.lerp(Colors.C1, Colors.C3, t) & 0xFFFFFF;
@@ -211,12 +266,123 @@ public final class Logos {
 
 	public static void draw(GuiGraphicsExtractor g, int x, int y, int size, double angle, int style) {
 		ensure(style, tintMode);
-		int f = (int) Math.round((angle / (Math.PI * 2)) * FRAMES) % FRAMES;
+		int f = (int) Math.floor((angle / (Math.PI * 2)) * FRAMES) % FRAMES;
 		if (f < 0) f += FRAMES;
 		Gfx.blit(g, ID, x, y, f * (float) CELL, 0f, size, size, CELL, CELL, CELL * FRAMES, CELL);
 	}
 
-	public static boolean imageAvailable() { loadSource(); return src != null; }
+	                public static void drawWide(
+                GuiGraphicsExtractor g,
+                int x, int y,
+                int width, int height,
+                double angle
+        ) {
+                // Keep the original PNG colours and transparency.
+                ensure(IMAGE_STYLE, 3);
+
+                // Continuous projection, rather than 32 discrete frames.
+                double face = Math.cos(angle);
+                int projectedWidth = Math.max(1,
+                        (int) Math.round(width * Math.abs(face)));
+
+                int drawX = x + (width - projectedWidth) / 2;
+
+                // Frame zero is the full, front-facing logo.
+                Gfx.blit(
+                        g, ID,
+                        drawX, y,
+                        0f, 0f,
+                        projectedWidth, height,
+                        IMAGE_W, IMAGE_H,
+                        IMAGE_W * FRAMES, IMAGE_H
+                );
+        }
+        private static final Identifier SMOOTH_ID =
+                Identifier.fromNamespaceAndPath("lovenote", "gen/drainer_smooth");
+
+        private static boolean smoothLoaded = false;
+
+        private static void ensureSmooth() {
+                if (smoothLoaded) return;
+
+                Minecraft mc = Minecraft.getInstance();
+                if (mc == null) return;
+
+                try {
+                        RenderSystem.assertOnRenderThread();
+                        loadSource();
+                        if (src == null) return;
+
+                        NativeImage image = new NativeImage(
+                                src.getWidth(), src.getHeight(), false
+                        );
+
+                        int[] pixels = src.getPixels();
+
+                        for (int y = 0; y < src.getHeight(); y++) {
+                                for (int x = 0; x < src.getWidth(); x++) {
+                                        image.setPixelABGR(
+                                                x, y,
+                                                pixels[y * src.getWidth() + x]
+                                        );
+                                }
+                        }
+
+                        mc.getTextureManager().register(
+                                SMOOTH_ID,
+                                new DynamicTexture(() -> "drainer_smooth", image)
+                        );
+
+                        smoothLoaded = true;
+                } catch (Throwable t) {
+                        t.printStackTrace();
+                }
+        }
+
+                public static void drawSmoothWide(
+                GuiGraphicsExtractor g,
+                int x, int y,
+                int width, int height,
+                double angle
+        ) {
+                ensureSmooth();
+                if (!smoothLoaded || src == null) return;
+
+                // Continuous horizontal projection, without integer-width jumps.
+                float projection = (float) Math.cos(angle);
+
+                // Avoid a zero-width texture when viewed edge-on.
+                if (Math.abs(projection) < 0.015f) {
+                        projection = projection < 0f ? -0.015f : 0.015f;
+                }
+
+                var pose = g.pose();
+
+                pose.pushMatrix();
+                try {
+                        float centerX = x + width * 0.5f;
+
+                        pose.translate(centerX, (float) y);
+
+                        // Negative values mirror the image during the back half
+                        // of the rotation, simulating a full Y-axis turn.
+                        pose.scale(projection, 1.0f);
+
+                        Gfx.blit(
+                                g,
+                                SMOOTH_ID,
+                                -width / 2,
+                                0,
+                                0f, 0f,
+                                width, height,
+                                src.getWidth(), src.getHeight(),
+                                src.getWidth(), src.getHeight()
+                        );
+                } finally {
+                        pose.popMatrix();
+                }
+        }
+public static boolean imageAvailable() { loadSource(); return src != null; }
 
 	private static boolean inside(int style, double x, double y) {
 		switch (style) {

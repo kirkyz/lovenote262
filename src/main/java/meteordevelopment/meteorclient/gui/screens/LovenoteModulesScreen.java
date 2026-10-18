@@ -591,7 +591,7 @@ public class LovenoteModulesScreen extends TabScreen {
         }
 
         int cx = contentX(), cw = contentW();
-        int hdr = wy + 36;
+        int hdr = wy + 107;
         int ftr = wy + winH - (LovenoteMenuConfig.footer ? 22 : 8);
         fill(ctx, cx - 2, hdr, cx + cw + 2, hdr + 1, LovenotePalette.alpha(LovenotePalette.track(), 150));
         if (LovenoteMenuConfig.footer) fill(ctx, cx - 2, ftr, cx + cw + 2, ftr + 1, LovenotePalette.alpha(LovenotePalette.track(), 150));
@@ -599,29 +599,37 @@ public class LovenoteModulesScreen extends TabScreen {
         String q = searchText.trim().toLowerCase();
         boolean moduleGrid = !q.isEmpty() || !isSpecial(page);
 
+        // DRAINER: centred animated logo, above the search bar.
+        if (LovenoteMenuConfig.logo) {
+            double headerLogoAngle = System.nanoTime() / 1000000000.0
+                * Math.PI * 2.0 * 0.18;
+
+            com.lovenote.util.Logos.drawSmoothWide(ctx, cx + (cw - 230) / 2, wy, 230, 76, 0.0);
+        }
+
         int sw = Math.min(200, cw / 2);
-        rr(ctx, cx, wy + 9, sw, 18, 9, LovenotePalette.alpha(LovenotePalette.chip(), 210));
-        circle(ctx, cx + 11, wy + 18, 4, LovenotePalette.faint());
-        circle(ctx, cx + 11, wy + 18, 2, LovenotePalette.alpha(LovenotePalette.bg(), 255));
-        fill(ctx, cx + 14, wy + 21, cx + 17, wy + 22, LovenotePalette.faint());
-        addHit(cx, wy + 9, sw, 18, K_SEARCH, null, null, 0);
+        rr(ctx, cx, wy + 78, sw, 18, 9, LovenotePalette.alpha(LovenotePalette.chip(), 210));
+        circle(ctx, cx + 11, wy + 87, 4, LovenotePalette.faint());
+        circle(ctx, cx + 11, wy + 87, 2, LovenotePalette.alpha(LovenotePalette.bg(), 255));
+        fill(ctx, cx + 14, wy + 90, cx + 17, wy + 91, LovenotePalette.faint());
+        addHit(cx, wy + 78, sw, 18, K_SEARCH, null, null, 0);
         if (searchText.isEmpty() && !searchFocused) {
-            txt(ctx, "Search...", cx + 22, wy + 14, LovenotePalette.faint());
+            txt(ctx, "Search...", cx + 22, wy + 83, LovenotePalette.faint());
         } else {
-            txt(ctx, searchText, cx + 22, wy + 14, LovenotePalette.text());
+            txt(ctx, searchText, cx + 22, wy + 83, LovenotePalette.text());
             if (searchFocused && (System.currentTimeMillis() / 500) % 2 == 0) {
                 int caretX = cx + 22 + font.width(searchText);
-                fill(ctx, caretX, wy + 13, caretX + 1, wy + 23, LovenotePalette.text());
+                fill(ctx, caretX, wy + 82, caretX + 1, wy + 92, LovenotePalette.text());
             }
         }
 
-        String crumb = "lovenote";
+        String crumb = "drainer";
         int crumbX = cx + sw + 10;
-        txt(ctx, crumb, crumbX, wy + 14, LovenotePalette.alpha(LovenotePalette.faint(), 170));
+        txt(ctx, crumb, crumbX, wy + 83, LovenotePalette.alpha(LovenotePalette.faint(), 170));
         crumbX += font.width(crumb) + 4;
-        txt(ctx, "\u203A", crumbX, wy + 14, LovenotePalette.alpha(LovenotePalette.faint(), 120));
+        txt(ctx, "\u203A", crumbX, wy + 83, LovenotePalette.alpha(LovenotePalette.faint(), 120));
         crumbX += 8;
-        txt(ctx, !q.isEmpty() ? "search" : pageLabel(page).toLowerCase(), crumbX, wy + 14, LovenotePalette.wave(0f));
+        txt(ctx, !q.isEmpty() ? "search" : pageLabel(page).toLowerCase(), crumbX, wy + 83, LovenotePalette.wave(0f));
 
         int bx = wx + winW - 16;
         boolean cHov = interactive && mx >= bx - 4 && mx <= bx + 10 && my >= wy + 10 && my <= wy + 26;
@@ -630,7 +638,7 @@ public class LovenoteModulesScreen extends TabScreen {
 
         float tSlide = Mth.clamp(tabMs / 220f, 0f, 1f);
         float tEase = 1f - (1f - tSlide) * (1f - tSlide);
-        int titleY = wy + 46 + (int) ((1f - tEase) * 8f);
+        int titleY = wy + 116 + (int) ((1f - tEase) * 8f);
         String title = !q.isEmpty() ? "All" : pageLabel(page);
         txtS(ctx, title, cx, titleY, LovenotePalette.text());
         int count = visibleModules(q).size();
@@ -638,18 +646,23 @@ public class LovenoteModulesScreen extends TabScreen {
         int subX = cx + font.width(title) + 8;
         if (subX + font.width(sub) < cx + cw) txt(ctx, sub, subX, titleY + 2, LovenotePalette.faint());
 
-        int top = wy + 66, bottom = ftr - 6;
+        int top = wy + 136, bottom = ftr - 6;
         if (!q.isEmpty() || !isSpecial(page)) renderCards(ctx, mx, my, cx, top, cw, bottom, q, interactive, corner);
-        else txt(ctx, pageLabel(page) + " page", cx + 4, top + 8, LovenotePalette.faint());
+        else if (page == cats.size() + 1) {
+            drawThemePresets(ctx, cx, top, cw, bottom);
+        } else {
+            txt(ctx, pageLabel(page) + " page",
+                cx + 4, top + 8, LovenotePalette.faint());
+        }
 
         if (LovenoteMenuConfig.footer) drawFooter(ctx, cx, cw, ftr);
     }
 
     private void drawFooter(GuiGraphicsExtractor ctx, int cx, int cw, int ftr) {
         int y = ftr + 7;
-        txt(ctx, "lovenote", cx, y, LovenotePalette.faint());
+        txt(ctx, "drainer", cx, y, LovenotePalette.faint());
         long secs = (System.currentTimeMillis() - sessionStart) / 1000L;
-        txt(ctx, String.format("%02d:%02d", secs / 60, secs % 60), cx + font.width("lovenote") + 6, y, LovenotePalette.alpha(LovenotePalette.faint(), 140));
+        txt(ctx, String.format("%02d:%02d", secs / 60, secs % 60), cx + font.width("drainer") + 6, y, LovenotePalette.alpha(LovenotePalette.faint(), 140));
         int enabled = 0;
         for (Row m : allModules) if (m.active()) enabled++;
         String[] seg = { enabled + " on", mc.getFps() + " fps", "ctrl+scroll" };
@@ -670,72 +683,199 @@ public class LovenoteModulesScreen extends TabScreen {
         return out;
     }
 
-    private void renderCards(GuiGraphicsExtractor ctx, int mx, int my, int cx, int top, int cw, int bottom, String q, boolean interactive, int corner) {
+    private void renderCards(GuiGraphicsExtractor ctx, int mx, int my,
+                             int cx, int top, int cw, int bottom,
+                             String q, boolean interactive, int corner) {
         List<Row> list = visibleModules(q);
+
         int ncols = Mth.clamp(LovenoteMenuConfig.columns, 1, 3);
         boolean compact = LovenoteMenuConfig.compact;
-        int gap = 7;
+        int gap = 8;
         int cardW = (cw - (ncols - 1) * gap) / ncols;
-        int cardH = compact ? 30 : 42;
+        int cardH = compact ? 48 : 68;
+
         int rows = (list.size() + ncols - 1) / ncols;
         maxScroll = Math.max(0, rows * (cardH + gap) - (bottom - top));
-        scrollTarget = Mth.clamp(scrollTarget, 0, maxScroll);
-        scrollShown += (scrollTarget - scrollShown) * (1f - (float) Math.exp(-dt / 40f));
-        if (Math.abs(scrollTarget - scrollShown) < 0.2f) scrollShown = scrollTarget;
-        if (mx > cx - 6 && mx < cx + cw + 12 && my > top && my < bottom) sbAlpha = 1f;
 
-        int cr = Math.max(2, corner - 2);
+        scrollTarget = Mth.clamp(scrollTarget, 0, maxScroll);
+        scrollShown += (scrollTarget - scrollShown)
+            * (1f - (float) Math.exp(-dt / 40f));
+
+        if (Math.abs(scrollTarget - scrollShown) < 0.2f)
+            scrollShown = scrollTarget;
+
+        if (mx > cx - 6 && mx < cx + cw + 12
+            && my > top && my < bottom)
+            sbAlpha = 1f;
+
+        int cr = Math.max(7, corner);
+
         ctx.enableScissor(cx - 2, top - 2, cx + cw + 4, bottom);
+
         for (int i = 0; i < list.size(); i++) {
             Row m = list.get(i);
+
             int col = i % ncols;
             int x = cx + col * (cardW + gap);
-            int y = top + (i / ncols) * (cardH + gap) - Math.round(scrollShown);
-            if (y + cardH < top - 8 || y > bottom + 8) continue;
+            int y = top + (i / ncols) * (cardH + gap)
+                - Math.round(scrollShown);
+
+            if (y + cardH < top - 8 || y > bottom + 8)
+                continue;
 
             float st = stagger(i);
             int sy = y + (int) ((1f - st) * 10f);
-            boolean hov = interactive && mx >= x && mx < x + cardW && my >= sy && my < sy + cardH && my >= top && my <= bottom;
-            float hv = ease(m.title() + ":h", hov ? 1f : 0f, 130);
-            float on = ease(m.title() + ":s", m.active() ? 1f : 0f, 170);
-            float sel = ease(m.title() + ":sel", selected == m ? 1f : 0f, 170);
+
+            boolean hov = interactive
+                && mx >= x && mx < x + cardW
+                && my >= sy && my < sy + cardH
+                && my >= top && my <= bottom;
+
+            float hv = ease(m.title() + ":h", hov ? 1f : 0f, 150);
+            float on = ease(m.title() + ":s", m.active() ? 1f : 0f, 180);
+            float sel = ease(m.title() + ":sel",
+                selected == m ? 1f : 0f, 180);
 
             int ly = sy - (int) (hv * LovenoteMenuConfig.hoverLift);
-            if (sel > 0.02f) rr(ctx, x - 1, ly - 1, cardW + 2, cardH + 2, cr + 1, LovenotePalette.alpha(LovenotePalette.C2, (int) (150 * sel)));
-            if (hv > 0.02f) rr(ctx, x - 1, ly - 1, cardW + 2, cardH + 2, cr + 1, LovenotePalette.alpha(LovenotePalette.wave(0f), (int) (70 * hv)));
+            int accent = LovenotePalette.wave(i * 0.07f);
 
-            if (LovenoteMenuConfig.cardStyle.equals("Outline")) {
-                rr(ctx, x, ly, cardW, cardH, cr, LovenotePalette.lerp(LovenotePalette.bg(), LovenotePalette.cardHover(), hv));
-                rr(ctx, x, ly, cardW, cardH, cr, LovenotePalette.alpha(LovenotePalette.C2, (int) (40 + 90 * hv + 70 * on)));
-            } else if (LovenoteMenuConfig.cardStyle.equals("Glass")) {
-                rr(ctx, x, ly, cardW, cardH, cr, LovenotePalette.alpha(LovenotePalette.card(), (int) (150 + 70 * hv)));
-            } else {
-                rr(ctx, x, ly, cardW, cardH, cr, LovenotePalette.lerp(LovenotePalette.card(), LovenotePalette.cardHover(), hv));
+            // Animated breathing glow
+            float pulse = (float) (
+                0.5 + 0.5 * Math.sin(
+                    System.currentTimeMillis() / 650.0 + i * 0.65
+                )
+            );
+
+            if (on > 0.01f || hv > 0.01f || sel > 0.01f) {
+                int glowAlpha = (int) (
+                    22 + 40 * pulse * on + 65 * hv + 75 * sel
+                );
+
+                rr(ctx, x - 2, ly - 2,
+                    cardW + 4, cardH + 4, cr + 2,
+                    LovenotePalette.alpha(accent, Math.min(110, glowAlpha / 2)));
             }
-            if (on > 0.02f) rr(ctx, x, ly + 9, 2, cardH - 18, 1, LovenotePalette.alpha(LovenotePalette.wave(x * 0.004f), (int) (255 * on)));
 
-            circle(ctx, x + 13, ly + (compact ? 15 : 13), 2, LovenotePalette.lerp(LovenotePalette.faint(), LovenotePalette.wave(0f), on));
-            int textW = cardW - 15 - 44;
+            // Glass card surface
+            rr(ctx, x, ly, cardW, cardH, cr,
+                LovenotePalette.lerp(
+                    LovenotePalette.card(),
+                    LovenotePalette.cardHover(), hv));
+
+            // Accent line
+            if (on > 0.01f) {
+                rr(ctx, x + 12, ly + 1, cardW - 24, 2, 1,
+                    LovenotePalette.alpha(accent,
+                        (int) (110 * on)));
+            }
+
+            // Rounded illuminated icon tile
+            int tile = compact ? 23 : 28;
+            int ix = x + 12;
+            int iy = ly + 9;
+
+            rr(ctx, ix, iy, tile, tile, 8,
+                LovenotePalette.alpha(accent,
+                    (int) (65 + 70 * on + 40 * hv)));
+
+            rr(ctx, ix + 2, iy + 2,
+                tile - 4, tile - 4, 6,
+                LovenotePalette.alpha(
+                    LovenotePalette.card(), 160));
+
+            // Minimal geometric module emblem
+            circle(ctx, ix + tile / 2, iy + tile / 2,
+                compact ? 5 : 6,
+                LovenotePalette.alpha(accent, 235));
+
+            circle(ctx, ix + tile / 2, iy + tile / 2,
+                2, LovenotePalette.card());
+
+            // Module title
+            int textX = ix + tile + 9;
+            int textW = Math.max(10, cardW - (textX - x) - 12);
+
             String name = trim(m.title(), textW);
-            txt(ctx, name, x + 20, ly + (compact ? 11 : 9), LovenotePalette.lerp(LovenotePalette.dim(), LovenotePalette.text(), Math.max(on, hv * 0.8f)));
-            if (!compact && LovenoteMenuConfig.descriptions) txt(ctx, trim(m.description(), textW), x + 20, ly + 24, LovenotePalette.faint());
-            drawSwitch(ctx, x + cardW - 33, ly + (compact ? 10 : 16), on);
-            int k = m.key();
-            if (k != -1 && !compact) {
-                String kb = "[" + keyName(k) + "]";
-                txt(ctx, kb, x + cardW - 38 - font.width(kb), ly + 26, LovenotePalette.alpha(LovenotePalette.faint(), 150));
+
+            txt(ctx, name, textX, ly + 11,
+                LovenotePalette.text());
+
+            // Description
+            if (!compact && LovenoteMenuConfig.descriptions) {
+                txt(ctx,
+                    trim(m.description(), Math.max(10, cardW - 26)),
+                    x + 13, ly + 36,
+                    LovenotePalette.dim());
             }
-            txt(ctx, "\u203A", x + cardW - 12, ly + (compact ? 11 : 16), LovenotePalette.alpha(LovenotePalette.faint(), (int) (120 + 100 * hv)));
 
-            addHit(x, ly, cardW, cardH, K_CARD, m, null, 0);
-            addHit(x + cardW - 37, ly + (compact ? 4 : 10), 34, 22, K_SWITCH, m, null, 0);
-            if (hov && LovenoteMenuConfig.tooltips && !name.equals(m.title())) tooltip = m.title();
+            // Status and animated switch
+            String status = m.active() ? "ENABLED" : "DISABLED";
+
+            txt(ctx, status, x + 13, ly + cardH - 15,
+                LovenotePalette.lerp(
+                    LovenotePalette.faint(), accent, on));
+
+            int switchX = x + cardW - 35;
+            int switchY = ly + cardH - 18;
+
+            drawSwitch(ctx, switchX, switchY, on);
+
+            // Existing interaction handling
+            addHit(x, ly, cardW, cardH,
+                K_CARD, m, null, 0);
+
+            addHit(switchX - 4, switchY - 5,
+                34, 22, K_SWITCH, m, null, 0);
+
+            if (hov && LovenoteMenuConfig.tooltips
+                && !name.equals(m.title()))
+                tooltip = m.title();
         }
-        ctx.disableScissor();
-        scrollbar(ctx, cx + cw + 6, top, bottom, scrollShown, maxScroll);
-        if (list.isEmpty()) txt(ctx, "No modules found", cx + 4, top + 8, LovenotePalette.faint());
-    }
 
+        ctx.disableScissor();
+
+        scrollbar(ctx, cx + cw + 6,
+            top, bottom, scrollShown, maxScroll);
+
+        if (list.isEmpty())
+            txt(ctx, "No modules found",
+                cx + 4, top + 8, LovenotePalette.faint());
+    }
+    private void drawThemePresets(GuiGraphicsExtractor ctx,
+                                  int x, int top, int width, int bottom) {
+        txt(ctx, "APPEARANCE", x + 8, top + 8, LovenotePalette.text());
+        txt(ctx, "Choose your accent colour",
+            x + 8, top + 25, LovenotePalette.dim());
+
+        int cols = 7;
+        int gap = 8;
+        int size = Math.min(34, Math.max(18,
+            (width - 16 - gap * (cols - 1)) / cols));
+
+        int startX = x + 8;
+        int startY = top + 50;
+
+        ctx.enableScissor(x, top, x + width, bottom);
+
+        for (int i = 0; i < LovenotePalette.PRESETS.length; i++) {
+            int bx = startX + (i % cols) * (size + gap);
+            int by = startY + (i / cols) * (size + gap);
+
+            if (by + size > bottom) break;
+
+            int color = 0xFF000000 | LovenotePalette.PRESETS[i][0];
+
+            if (LovenoteMenuConfig.accentIndex == i) {
+                rr(ctx, bx - 2, by - 2, size + 4, size + 4,
+                    9, LovenotePalette.alpha(color, 140));
+            }
+
+            rr(ctx, bx, by, size, size, 8, color);
+            addHit(bx, by, size, size, K_ACCENT, null, null, i);
+        }
+
+        ctx.disableScissor();
+    }
     private String trim(String s, int w) {
         if (font.width(s) <= w) return s;
         StringBuilder b = new StringBuilder();
@@ -753,11 +893,6 @@ public class LovenoteModulesScreen extends TabScreen {
         if (sb > 0.02f) for (int i = 5; i >= 1; i--) rr(ctx, sx + sbw - 2, wy + 4, i * 2 + 2, winH - 8, 8, LovenotePalette.alpha(0x000000, (int) (9 * sb)));
         rr(ctx, sx, wy, sbw, winH, corner, LovenotePalette.dark ? 0xFA0C0C12 : 0xFAEDEDF4);
         grad(ctx, sx + 2, wy + 8, sx + sbw - 2, wy + 9, LovenotePalette.alpha(LovenotePalette.C1, 90), LovenotePalette.alpha(LovenotePalette.C3, 90));
-
-        int logoCx = sx + 23, logoCy = wy + 24;
-        if (LovenoteMenuConfig.logoGlow) for (int g = 12; g >= 1; g--) circle(ctx, logoCx, logoCy, g + 8, LovenotePalette.alpha(LovenotePalette.C2, (int) (6 * (1f - g / 13f) + 3)));
-        if (LovenoteMenuConfig.logo) { circle(ctx, logoCx, logoCy, 9, LovenotePalette.wave(0f)); txtS(ctx, "\u2665", logoCx - 3, logoCy - 4, 0xFFFFFFFF); }
-        if (sb > 0.05f) txtS(ctx, "lovenote", sx + 42, wy + 20, LovenotePalette.alpha(LovenotePalette.text(), (int) (255 * sb)));
 
         String q = searchText.trim();
         int avail = winH - 56 - 40;
