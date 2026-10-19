@@ -134,6 +134,7 @@ public class ModuleManager {
 		register(new Freelook());
 		register(new ParticleField());
 		register(new CustomParticles());
+        register(new VisualOptimizer()).setEnabled(true);
 		register(new GroundRings());
 		register(new TrailRibbon());
 		register(new GhostTrail());
@@ -190,6 +191,8 @@ public class ModuleManager {
 		// V9 deduplicated: InterfaceModule (placeholder; Interface is the real settings module).
 		register(new Watermark());
 		register(new DrainerInfoBar());
+        register(new SessionTimer());
+        register(new EntityCounter());
 		register(new SpotifyHud());
 		register(new Lyrics());
 		register(new StaffList());

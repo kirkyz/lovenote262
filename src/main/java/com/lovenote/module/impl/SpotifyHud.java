@@ -13,8 +13,8 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 public final class SpotifyHud extends Module {
     private final NumberSetting x = add(new NumberSetting("X", 0.02, 0, .98, .005));
     private final NumberSetting y = add(new NumberSetting("Y", .72, 0, .98, .005));
-    private final NumberSetting size = add(new NumberSetting("Scale", .8, .25, 1.6, .05));
-    private final BoolSetting compact = add(new BoolSetting("Compact", false));
+    private final NumberSetting size = add(new NumberSetting("Scale", .65, .25, 1.6, .05));
+    private final BoolSetting compact = add(new BoolSetting("Compact", true));
     private final BoolSetting hideIdle = add(new BoolSetting("Hide when idle", true));
     private final BoolSetting showTime = add(new BoolSetting("Timestamps", true));
     private final BoolSetting showControls = add(new BoolSetting("Control hints", true));
@@ -75,57 +75,57 @@ public final class SpotifyHud extends Module {
 
     @Override public void onHud(GuiGraphicsExtractor g, float tickDelta) {
         SpotifyManager m = SpotifyManager.I;
-        if (!m.hasTrack && hideIdle.get()) return;
+        // Keep Spotify visible as a preview in the HUD editor when nothing is playing.
+        boolean editing = net.minecraft.client.Minecraft.getInstance().gui.screen() instanceof
+            meteordevelopment.meteorclient.gui.screens.LovenoteModulesScreen screen && screen.isDrainerHudEditor();
+        if (!m.hasTrack && hideIdle.get() && !editing) return;
         double sc = Math.max(.25, Math.min(1.6, size.get()));
         scaleNow = sc;
         boolean small = compact.get();
-        int bw = small ? 296 : 336, bh = small ? 96 : 116;
+        int bw = small ? 228 : 278, bh = small ? 60 : 93;
         w = (int) Math.round(bw * sc); h = (int) Math.round(bh * sc);
         px = Math.max(0, Math.min((int) (x.get() * Gfx.guiW()), Math.max(0, Gfx.guiW() - w)));
         py = Math.max(0, Math.min((int) (y.get() * Gfx.guiH()), Math.max(0, Gfx.guiH() - h)));
         int alpha = Math.max(0, Math.min(255, (int) (opacity.get() * 2.55)));
-        int art = small ? 58 : 68;
-        int ax = 13, ay = small ? 18 : 19;
-        int tx = small ? 84 : 94;
+        int art = small ? 36 : 50;
+        int ax = 8, ay = small ? 11 : 16;
+        int tx = small ? 54 : 70;
         barX = px + (int) Math.round(tx * sc);
-        barY = py + (int) Math.round((small ? 79 : 89) * sc);
-        barW = (int) Math.round((bw - tx - 16) * sc);
-        controlX = px + (int) Math.round((small ? 84 : 111) * sc);
-        controlY = py + (int) Math.round((small ? 61 : 66) * sc);
+        barY = py + (int) Math.round((small ? 52 : 70) * sc);
+        barW = (int) Math.round((bw - tx - 11) * sc);
+        controlX = px + (int) Math.round((small ? 54 : 70) * sc);
+        controlY = py + (int) Math.round((small ? 39 : 51) * sc);
 
         // Matrix transform scales artwork, text, spacing and bars TOGETHER. Geometry never pulses.
         var pose = g.pose();
         pose.pushMatrix();
         pose.translate(px, py);
         pose.scale((float) sc, (float) sc);
-        Ui.rrect(g, -2, -2, bw+4, bh+4, 12, 0x235E388A);
-        Ui.rrect(g, -1, -1, bw+2, bh+2, 11, 0xA5C77CEE);
-        Ui.rrect(g, 0, 0, bw, bh, 10, (alpha << 24) | 0x11101B);
-        Ui.rect(g, 15, bh-3, bw-30, 1, 0x758F5AB7);
-        Ui.rrect(g, ax-2, ay-2, art+4, art+4, 6, 0xFF5A4166);
-        Ui.rrect(g, ax, ay, art, art, 4, 0xFF292030);
+        Ui.widgetCard(g, 0, 0, bw, bh, alpha);
+        Ui.rrect(g, ax-1, ay-1, art+2, art+2, 3, 0x489269B4);
+        Ui.rrect(g, ax, ay, art, art, 2, 0xFF292030);
         if (artwork.get() && m.artTexture != null) Gfx.blit(g, m.artTexture, ax, ay, 0, 0, art, art, art, art, art, art);
         else Ui.text(g, "♫", ax + art / 2 - 5, ay + art / 2 - 5, 0xFFEBC7F5);
-        Ui.text(g, "NOW PLAYING", tx, 13, 0xFFB992C7);
-        Ui.text(g, fit(m.hasTrack ? m.title : m.status, bw-tx-17), tx, 29, 0xFFF4EBF8);
-        Ui.text(g, fit(m.hasTrack ? m.artist : "Windows media", bw-tx-17), tx, 44, 0xFFAC9CB7);
+        Ui.text(g, "NOW PLAYING", tx, 6, 0xFFB992C7);
+        Ui.text(g, fit(m.hasTrack ? m.title : m.status, bw-tx-12), tx, small ? 19 : 23, 0xFFF4EBF8);
+        Ui.text(g, fit(m.hasTrack ? m.artist : "Windows media", bw-tx-12), tx, small ? 30 : 36, 0xFFAC9CB7);
         if (showControls.get()) {
-            int cx = small ? 84 : 111, cy = small ? 61 : 66;
+            int cx = small ? 54 : 70, cy = small ? 40 : 52;
             Ui.text(g, "|<", cx, cy, 0xFFCBB0DC);
             Ui.text(g, m.playing ? "||" : ">", cx+26, cy, 0xFFF0A9D6);
             Ui.text(g, ">|", cx+52, cy, 0xFFCBB0DC);
         }
-        int localBarY = small ? 79 : 89;
-        int localBarW = bw - tx - 16;
-        Ui.rrect(g, tx, localBarY, localBarW, 4, 2, 0xFF493650);
+        int localBarY = small ? 53 : 72;
+        int localBarW = bw - tx - 11;
+        Ui.rrect(g, tx, localBarY, localBarW, 2, 1, 0xFF493650);
         if (m.durationMs > 0) {
             double ratio = Math.max(0, Math.min(1, (double) m.progress() / m.durationMs));
-            Ui.rrect(g, tx, localBarY, (int) Math.round(localBarW*ratio), 4, 2, 0xFFE7A4D8);
+            Ui.rrect(g, tx, localBarY, (int) Math.round(localBarW*ratio), 2, 1, 0xFFE7A4D8);
         }
         if (!small && showTime.get()) {
-            Ui.text(g, clock(m.progress()), tx, 98, 0xFFAE9BB9);
+            Ui.text(g, clock(m.progress()), tx, 81, 0xFFAE9BB9);
             String duration = clock(m.durationMs);
-            Ui.text(g, duration, bw - 16 - Ui.textW(duration), 98, 0xFFAE9BB9);
+            Ui.text(g, duration, bw - 11 - Ui.textW(duration), 81, 0xFFAE9BB9);
         }
         pose.popMatrix();
     }

@@ -23,7 +23,7 @@ public final class MenuFx {
 	public static boolean edgeGlow = true;
 	public static int edgeGlowAlpha = 70;
 
-	public static boolean logoInMenu = true;
+	public static boolean logoInMenu = false;
 	public static int logoMenuSize = 24;
 	public static String logoMenuCorner = "Top Left";
 	public static int logoStyle = 2;

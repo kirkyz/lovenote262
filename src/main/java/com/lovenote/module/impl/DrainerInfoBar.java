@@ -5,13 +5,14 @@ import com.lovenote.module.Module;
 import com.lovenote.setting.BoolSetting;
 import com.lovenote.setting.NumberSetting;
 import com.lovenote.util.Gfx;
+import com.lovenote.util.HudWidgetBounds;
 import com.lovenote.util.Ui;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 
 /** Lightweight configurable Drainer status bar. */
-public final class DrainerInfoBar extends Module {
+public final class DrainerInfoBar extends Module implements HudWidgetBounds {
     private final NumberSetting x=add(new NumberSetting("X",.012,0,.98,.005));
     private final NumberSetting y=add(new NumberSetting("Y",.012,0,.98,.005));
     private final NumberSetting scale=add(new NumberSetting("Scale",1,.5,1.5,.05));
@@ -22,6 +23,11 @@ public final class DrainerInfoBar extends Module {
     private final BoolSetting separated=add(new BoolSetting("Segmented",true));
     private static final DateTimeFormatter CLOCK=DateTimeFormatter.ofPattern("HH:mm");
     public DrainerInfoBar(){super("DrainerInfoBar",Category.HUD);describe("Modular compact status bar: brand, FPS, clock and server.");}
+    private int drawnX,drawnY,drawnW=80,drawnH=17;
+    @Override public int editorX(){return drawnX;}
+    @Override public int editorY(){return drawnY;}
+    @Override public int editorWidth(){return drawnW;}
+    @Override public int editorHeight(){return drawnH;}
     @Override public void onHud(GuiGraphicsExtractor g,float delta){
         if(mc.player==null)return;
         String[] data={logo.get()?"✦ DRAINER":null,fps.get()?mc.getFps()+" FPS":null,
@@ -34,6 +40,7 @@ public final class DrainerInfoBar extends Module {
         total+=gap*(count-1);
         int px=Math.max(0,Math.min((int)(x.get()*Gfx.guiW()),Math.max(0,Gfx.guiW()-total)));
         int py=Math.max(0,Math.min((int)(y.get()*Gfx.guiH()),Math.max(0,Gfx.guiH()-h)));
+        drawnX=px;drawnY=py;drawnW=total;drawnH=h;
         int left=px;
         for(String item:data){
             if(item==null)continue;

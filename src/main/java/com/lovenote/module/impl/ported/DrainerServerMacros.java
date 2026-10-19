@@ -315,6 +315,14 @@ public final class DrainerServerMacros {
             tapes[slot.index()].setFrom(frames);
             playIndex=0;
         }
+        /** An independent snapshot; library saves never modify the live recording. */
+        public int[] selectedFrames() {
+            com.lovenote.macro.MacroTape current = tape();
+            int[] values = new int[current.size()];
+            for (int i = 0; i < values.length; i++) values[i] = current.get(i);
+            return values;
+        }
+        public String selectedSlot() { return slot.get(); }
         private com.lovenote.macro.MacroTape tape(){return tapes[slot.index()];}
         private void stopReplay(){
             com.lovenote.macro.MacroPlayback.release(mc,this);

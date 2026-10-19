@@ -60,7 +60,7 @@ public class Interface extends Module {
 	public final NumberSetting logoCropBottom = add(new NumberSetting("Logo crop bottom %", 0, 0, 60, 1));
 	public final NumberSetting logoZoom = add(new NumberSetting("Logo zoom", 1.0, 0.5, 1.8, 0.05));
 	public final BoolSetting logoKeyBlack = add(new BoolSetting("Logo key out black", true));
-	public final BoolSetting logoInMenu = add(new BoolSetting("Logo in menu", true));
+	public final BoolSetting logoInMenu = add(new BoolSetting("Logo in menu", false));
 	public final ModeSetting logoMenuCorner = add(new ModeSetting("Logo corner", "Top Left", "Top Left", "Top Right", "Bottom Left", "Bottom Right"));
 	public final NumberSetting logoMenuSize = add(new NumberSetting("Menu logo size", 24, 10, 72, 1));
 	public final NumberSetting logoMenuSpin = add(new NumberSetting("Menu logo spin", 0.7, 0.0, 4.0, 0.05));

@@ -67,6 +67,7 @@ public final class Gfx {
 	}
 
 	public static void text(GuiGraphicsExtractor g, String s, int x, int y, int col) {
+		if (ModernText.draw(g, s, x, y, col)) return;
 		resolve();
 		if (mText == null) return;
 		Minecraft mc = Minecraft.getInstance();

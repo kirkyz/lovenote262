@@ -27,9 +27,16 @@ public class CubeField extends Module {
 	private final NumberSetting width = add(new NumberSetting("Line width", 0.035, 0.008, 0.15, 0.004));
 	private final NumberSetting opacity = add(new NumberSetting("Opacity", 190, 20, 255, 5));
 	private final BoolSetting cores = add(new BoolSetting("Glow cores", true));
+    private final BoolSetting worldAnchored = add(new BoolSetting("Anchor effect in world", true));
+    private final NumberSetting travel = add(new NumberSetting("World drift", 1.2, 0, 5, 0.1));
 	private final NumberSetting coreSize = add(new NumberSetting("Core size", 0.35, 0.05, 2.0, 0.05));
 
 	private double[] px = new double[0], py = new double[0], pz = new double[0];
+    private double anchorX, anchorY, anchorZ;
+    private Object previousLevel;
+    private boolean anchorReady;
+    @Override public void onEnable() { anchorReady=false; previousLevel=null; }
+    @Override public void onDisable() { anchorReady=false; previousLevel=null; }
 
 	public CubeField() {
 		super("CubeField", Category.VISUALS);
@@ -50,7 +57,11 @@ public class CubeField extends Module {
 		if (mc.player == null) return;
 		Matrix4f mat = stack.last().pose();
 		var cam = ctx.camera().position();
-		double cx = mc.player.getX(), cy = mc.player.getY(), cz = mc.player.getZ();
+        double cx = mc.player.getX(), cy = mc.player.getY(), cz = mc.player.getZ();
+        if (!anchorReady || previousLevel!=mc.level || Math.hypot(cx-anchorX,cz-anchorZ)>radius.get()*1.2) {
+            anchorX=cx;anchorY=cy;anchorZ=cz;previousLevel=mc.level;anchorReady=true;
+        }
+        if(worldAnchored.get()) {cx=anchorX;cy=anchorY;cz=anchorZ;}
 
 		int n = count.getI();
 		if (px.length != n) { px = new double[n]; py = new double[n]; pz = new double[n]; }
@@ -65,7 +76,7 @@ public class CubeField extends Module {
 		float spn = spin.getF();
 		String md = mode.get();
 
-		MeshBuilder b = Fx.colorQuads();
+        MeshBuilder b = Fx.colorQuadsDepth();
 		for (int i = 0; i < n; i++) {
 			float h1 = Vfx.hash(i * 3 + 1), h2 = Vfx.hash(i * 3 + 2), h3 = Vfx.hash(i * 3 + 3);
 			float h4 = Vfx.hash(i * 7), h5 = Vfx.hash(i * 11);
@@ -104,7 +115,10 @@ public class CubeField extends Module {
 				}
 			}
 
-			px[i] = x; py[i] = y; pz[i] = z;
+            // A small independent world-space travel offset prevents a static shell.
+            x += (h1*2-1)*travel.get()*Math.sin(t*sp*.55+h4*6);
+            z += (h3*2-1)*travel.get()*Math.cos(t*sp*.5+h4*6);
+            px[i] = x; py[i] = y; pz[i] = z;
 			Vfx.cube(b, mat, new Vfx.P(x, y, z), half * (0.7 + 0.6 * h5),
 					ang + t * spn, t * spn * 0.7 + h4 * 3, t * spn * 0.45,
 					th, Colors.alpha(tint(i, t), op), cam.x, cam.y, cam.z);
@@ -115,7 +129,7 @@ public class CubeField extends Module {
 		Fx.cameraBasis(ctx.camera());
 		Tex.ensure();
 		Fx.texture(Tex.GLOW);
-		MeshBuilder g = Fx.texQuads();
+        MeshBuilder g = Fx.texQuadsDepth();
 		float cs = coreSize.getF();
 		for (int i = 0; i < n; i++) {
 			int a = (int) (op * 0.85f * (0.55f + 0.45f * Vfx.hash(i * 13)));

@@ -24,6 +24,11 @@ public class PrismRain extends Module {
 	private final NumberSetting spin = add(new NumberSetting("Spin", 1.2, 0.0, 5.0, 0.05));
 	private final NumberSetting width = add(new NumberSetting("Line width", 0.02, 0.004, 0.09, 0.002));
 	private final NumberSetting opacity = add(new NumberSetting("Opacity", 170, 20, 255, 5));
+    private double ax,ay,az;
+    private Object previousLevel;
+    private boolean anchored;
+    @Override public void onEnable() {anchored=false;previousLevel=null;}
+    @Override public void onDisable() {anchored=false;previousLevel=null;}
 
 	public PrismRain() {
 		super("PrismRain", Category.VISUALS);
@@ -45,7 +50,11 @@ public class PrismRain extends Module {
 		if (mc.player == null) return;
 		Matrix4f mat = stack.last().pose();
 		var cam = ctx.camera().position();
-		double cx = mc.player.getX(), cy = mc.player.getY(), cz = mc.player.getZ();
+        double cx=mc.player.getX(),cy=mc.player.getY(),cz=mc.player.getZ();
+        if(!anchored || previousLevel!=mc.level || Math.hypot(cx-ax,cz-az)>spread.get()*.9){
+            ax=cx;ay=cy;az=cz;previousLevel=mc.level;anchored=true;
+        }
+        cx=ax;cy=ay;cz=az;
 
 		float t = System.currentTimeMillis() / 1000f;
 		int n = count.getI();
@@ -57,7 +66,7 @@ public class PrismRain extends Module {
 		float th = width.getF();
 		int op = opacity.getI();
 
-		MeshBuilder b = Fx.colorQuads();
+        MeshBuilder b = Fx.colorQuadsDepth();
 		for (int i = 0; i < n; i++) {
 			float h1 = Vfx.hash(i * 5 + 1), h2 = Vfx.hash(i * 5 + 2), h3 = Vfx.hash(i * 5 + 3);
 			double x = cx + (h1 * 2 - 1) * sp;

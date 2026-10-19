@@ -30,12 +30,19 @@ public final class Ui {
 	public static void push(Interface i) {
 		if (i == null) return;
 		int idx = i.accent.index();
-		if (idx != lastAccent) {
-			lastAccent = idx;
-			int[] pr = Colors.PRESETS[Math.min(idx, Colors.PRESETS.length - 1)];
-			Colors.setAccent(pr[0], pr[1]);
-			Logos.invalidate();
-		}
+        if (idx != lastAccent) { lastAccent = idx; Logos.invalidate(); }
+        // Menu Appearance and native widgets use the SAME editable accent colours.
+        int selected = meteordevelopment.meteorclient.gui.themes.lovenote.LovenoteMenuConfig.accentIndex;
+        int[] preset = meteordevelopment.meteorclient.gui.themes.lovenote.LovenotePalette.PRESETS[
+            Math.max(0, Math.min(selected < 0 ? idx : selected,
+                meteordevelopment.meteorclient.gui.themes.lovenote.LovenotePalette.PRESETS.length - 1))];
+        int p = meteordevelopment.meteorclient.gui.themes.lovenote.LovenoteMenuConfig.accentIndex < 0
+            ? meteordevelopment.meteorclient.gui.themes.lovenote.LovenoteMenuConfig.parse(
+                meteordevelopment.meteorclient.gui.themes.lovenote.LovenoteMenuConfig.customPrimary, preset[0]) : preset[0];
+        int q = meteordevelopment.meteorclient.gui.themes.lovenote.LovenoteMenuConfig.accentIndex < 0
+            ? meteordevelopment.meteorclient.gui.themes.lovenote.LovenoteMenuConfig.parse(
+                meteordevelopment.meteorclient.gui.themes.lovenote.LovenoteMenuConfig.customSecondary, preset[1]) : preset[1];
+        Colors.setAccent(p,q);
 		Colors.animated = i.animated.get();
 		Colors.dark = i.theme.is("Dark");
 
@@ -83,7 +90,8 @@ public final class Ui {
 		MenuFx.grain = i.menuGrain.getI();
 		MenuFx.edgeGlow = i.menuEdgeGlow.get();
 		MenuFx.edgeGlowAlpha = i.menuEdgeGlowAlpha.getI();
-		MenuFx.logoInMenu = i.logoInMenu.get();
+		// The visible Appearance toggle gates this older hidden module setting.
+		MenuFx.logoInMenu = i.logoInMenu.get() && meteordevelopment.meteorclient.gui.themes.lovenote.LovenoteMenuConfig.decorativeLogo;
 		MenuFx.logoStyle = i.logoStyle.index();
 		MenuFx.logoMenuSize = i.logoMenuSize.getI();
 		MenuFx.logoMenuCorner = i.logoMenuCorner.get();
@@ -159,18 +167,38 @@ public final class Ui {
     private static void neonChrome(GuiGraphicsExtractor g,int x,int y,int w,int h,boolean isPill){
         if(w<=0||h<=0)return;
         int r=isPill?Math.max(5,h/2):Math.max(7,Math.min(14,radius));
-        int glow=Colors.alpha(accent2,Math.max(22,Math.min(115,glowAlpha)));
+        int glow=Colors.alpha(accent2,Math.max(10,Math.min(80,glowAlpha)));
         if(glowOn)rrect(g,x-2,y-2,w+4,h+4,r+2,Colors.alpha(accent2,16));
         rrect(g,x-1,y-1,w+2,h+2,r+1,glow);
         rrect(g,x,y,w,h,r,Colors.alpha(0x0D0B19,Math.max(155,(bg>>>24)&255)));
         if(glass && h>13)rrect(g,x+3,y+2,w-6,Math.max(2,h/5),Math.max(2,r-2),0x1BFFFFFF);
         if(accentBorder && w>15)rect(g,x+Math.max(6,r/2),y+h-2,Math.max(2,w-Math.max(6,r/2)*2),1,Colors.alpha(accent1,94));
     }
+
+    /** Compact glass HUD chrome with shared editable colours and low-cost shine. */
+    public static void widgetCard(GuiGraphicsExtractor g, int x, int y, int w, int h, int opacity) {
+        if (w <= 3 || h <= 3) return;
+        int r = Math.min(3, Math.max(1,h/14));
+        int a = Math.max(0, Math.min(255,opacity));
+        a = Math.round(a*meteordevelopment.meteorclient.gui.themes.lovenote.LovenoteMenuConfig.widgetOpacity/100f);
+        int borderA = meteordevelopment.meteorclient.gui.themes.lovenote.LovenoteMenuConfig.widgetBorder;
+        int glowA = meteordevelopment.meteorclient.gui.themes.lovenote.LovenoteMenuConfig.widgetGlow;
+        if (glowOn && glowA>0) rrect(g,x-1,y-1,w+2,h+2,r+1,Colors.alpha(accent2,Math.min(30,glowA)));
+        rrect(g,x,y,w,h,r,Colors.alpha(accent2,borderA));
+        rrectGrad(g,x+1,y+1,w-2,h-2,Math.max(1,r-1),
+            Colors.alpha(0x12101B,a),Colors.alpha(0x08080F,a));
+        if (glass && meteordevelopment.meteorclient.gui.themes.lovenote.LovenoteMenuConfig.widgetGlass && h>14) {
+            int sheen=meteordevelopment.meteorclient.gui.themes.lovenote.LovenoteMenuConfig.widgetSheen;
+            if(sheen>0)rect(g,x+6,y+2,Math.max(1,w/4),1,Colors.alpha(0xFFFFFF,Math.min(24,sheen)));
+        }
+    }
+
     public static void panel(GuiGraphicsExtractor g, int x, int y, int w, int h) {
         neonChrome(g,x,y,w,h,false);
     }
     public static void pill(GuiGraphicsExtractor g, int x, int y, int w, int h) {
-        neonChrome(g,x,y,w,h,true);
+        // Legacy text widgets now share the premium rectangular chrome.
+        widgetCard(g, x, y, w, h, 224);
     }
 
 public static void bar(GuiGraphicsExtractor g, int x, int y, int w, int h) {
@@ -185,6 +213,6 @@ public static void bar(GuiGraphicsExtractor g, int x, int y, int w, int h) {
 	public static int textW(String s) {
 		Minecraft m = mc();
 		if (m == null || m.font == null) return s.length() * 6;
-		return m.font.width(s);
+		return ModernText.enabled() ? ModernText.width(s) : m.font.width(s);
 	}
 }

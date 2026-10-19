@@ -49,11 +49,21 @@ public final class LovenoteConfig {
                                 if (appearance.has("descriptions")) LovenoteMenuConfig.descriptions = appearance.get("descriptions").getAsBoolean();
                                 if (appearance.has("tooltips")) LovenoteMenuConfig.tooltips = appearance.get("tooltips").getAsBoolean();
                                 if (appearance.has("logo")) LovenoteMenuConfig.logo = appearance.get("logo").getAsBoolean();
+                                if (appearance.has("decorativeLogo")) LovenoteMenuConfig.decorativeLogo = appearance.get("decorativeLogo").getAsBoolean();
                                 if (appearance.has("shadow")) LovenoteMenuConfig.shadow = appearance.get("shadow").getAsBoolean();
                                 if (appearance.has("sheen")) LovenoteMenuConfig.sheen = appearance.get("sheen").getAsBoolean();
                                 if (appearance.has("ripples")) LovenoteMenuConfig.ripples = appearance.get("ripples").getAsBoolean();
                                 if (appearance.has("footer")) LovenoteMenuConfig.footer = appearance.get("footer").getAsBoolean();
                                 if (appearance.has("headerLine")) LovenoteMenuConfig.headerLine = appearance.get("headerLine").getAsBoolean();
+                                if (appearance.has("fontMode")) LovenoteMenuConfig.fontMode = appearance.get("fontMode").getAsString();
+                                if (appearance.has("widgetGlow")) LovenoteMenuConfig.widgetGlow = appearance.get("widgetGlow").getAsInt();
+                                if (appearance.has("widgetBorder")) LovenoteMenuConfig.widgetBorder = appearance.get("widgetBorder").getAsInt();
+                                if (appearance.has("widgetSheen")) LovenoteMenuConfig.widgetSheen = appearance.get("widgetSheen").getAsInt();
+                                if (appearance.has("widgetOpacity")) LovenoteMenuConfig.widgetOpacity = appearance.get("widgetOpacity").getAsInt();
+                                if (appearance.has("widgetGlass")) LovenoteMenuConfig.widgetGlass = appearance.get("widgetGlass").getAsBoolean();
+                                if (appearance.has("menuGlow")) LovenoteMenuConfig.glow = appearance.get("menuGlow").getAsInt();
+                                if (appearance.has("menuOpacity")) LovenoteMenuConfig.opacity = appearance.get("menuOpacity").getAsInt();
+                                if (appearance.has("menuCorner")) LovenoteMenuConfig.corner = appearance.get("menuCorner").getAsInt();
                         }
                         LovenoteMenuConfig.apply();
                         com.lovenote.util.HudScale.load(root.has("hudScales") && root.get("hudScales").isJsonObject()
@@ -165,11 +175,21 @@ public final class LovenoteConfig {
                 appearance.addProperty("descriptions", LovenoteMenuConfig.descriptions);
                 appearance.addProperty("tooltips", LovenoteMenuConfig.tooltips);
                 appearance.addProperty("logo", LovenoteMenuConfig.logo);
+                appearance.addProperty("decorativeLogo", LovenoteMenuConfig.decorativeLogo);
                 appearance.addProperty("shadow", LovenoteMenuConfig.shadow);
                 appearance.addProperty("sheen", LovenoteMenuConfig.sheen);
                 appearance.addProperty("ripples", LovenoteMenuConfig.ripples);
                 appearance.addProperty("footer", LovenoteMenuConfig.footer);
                 appearance.addProperty("headerLine", LovenoteMenuConfig.headerLine);
+                appearance.addProperty("fontMode", LovenoteMenuConfig.fontMode);
+                appearance.addProperty("widgetGlow", LovenoteMenuConfig.widgetGlow);
+                appearance.addProperty("widgetBorder", LovenoteMenuConfig.widgetBorder);
+                appearance.addProperty("widgetSheen", LovenoteMenuConfig.widgetSheen);
+                appearance.addProperty("widgetOpacity", LovenoteMenuConfig.widgetOpacity);
+                appearance.addProperty("widgetGlass", LovenoteMenuConfig.widgetGlass);
+                appearance.addProperty("menuGlow", LovenoteMenuConfig.glow);
+                appearance.addProperty("menuOpacity", LovenoteMenuConfig.opacity);
+                appearance.addProperty("menuCorner", LovenoteMenuConfig.corner);
                 root.add("menuAppearance", appearance);
 
                 String out = GSON.toJson(root);
