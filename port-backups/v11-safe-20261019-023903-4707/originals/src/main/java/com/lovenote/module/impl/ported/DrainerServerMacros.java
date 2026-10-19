@@ -1,0 +1,368 @@
+package com.lovenote.module.impl.ported;
+
+import com.google.gson.JsonObject;
+import com.lovenote.Lovenote;
+import com.lovenote.module.Category;
+import com.lovenote.module.Module;
+import com.lovenote.module.UnportedModule;
+import com.lovenote.setting.BoolSetting;
+import com.lovenote.setting.ModeSetting;
+import com.lovenote.setting.NumberSetting;
+import com.lovenote.util.BlockUtil;
+import com.lovenote.util.Gfx;
+import com.lovenote.util.Ui;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.ChestMenu;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.network.chat.Component;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
+/** Independent, Drainer-native adaptations of the submitted Donut/Hypixel module ideas.
+ * Nothing from the incompatible Meteor-addon entrypoint is installed here.
+ * Server-specific and experimental modules default to OFF.
+ */
+public final class DrainerServerMacros {
+    private DrainerServerMacros() {}
+
+    /** Command modules share one cooldown and never run from GUI screens. */
+    private abstract static class CommandModule extends Module {
+        protected final NumberSetting seconds = add(new NumberSetting("Interval (seconds)", 30, 3, 600, 1));
+        private int ticks;
+        CommandModule(String title, Category group, String desc) {super(title,group); describe(desc);}
+        protected abstract String command();
+        @Override public void onEnable(){ticks = 10;}
+        @Override public void onTick(){
+            if(mc.player==null || mc.player.connection==null || mc.gui.screen()!=null) return;
+            if(--ticks>0)return;
+            ticks=seconds.getI()*20;
+            String cmd=command();
+            if(cmd!=null && !cmd.isBlank() && cmd.length()<=180)
+                mc.player.connection.sendCommand(cmd.startsWith("/")?cmd.substring(1):cmd);
+        }
+    }
+    public static final class DonutAutoBuy extends CommandModule {
+        private final ModeSetting item = add(new ModeSetting("Item", "diamond", "diamond", "emerald", "totem", "obsidian", "gold", "iron"));
+        private final NumberSetting amount = add(new NumberSetting("Quantity",1,1,64,1));
+        public DonutAutoBuy(){super("DonutAutoBuy", Category.DONUT,"Issues a configured /buy command. Check prices and the server syntax before use."); seconds.set(45);}
+        @Override protected String command(){return "buy "+item.get()+" "+amount.getI();}
+    }
+    public static final class DonutAutoShard extends CommandModule {
+        public DonutAutoShard(){super("DonutAutoShard",Category.DONUT,"Runs the shard-conversion command at an interval."); seconds.set(60);}
+        @Override protected String command(){return "shard all";}
+    }
+    public static final class DonutAutoWarp extends CommandModule {
+        private final ModeSetting destination=add(new ModeSetting("Destination","market","market","spawn","home"));
+        public DonutAutoWarp(){super("DonutAutoWarp",Category.DONUT,"Issues configured /warp command. The location must exist on the server.");seconds.set(60);}
+        @Override protected String command(){return "warp "+destination.get();}
+    }
+    public static final class DonutAutoRekit extends CommandModule {
+        public DonutAutoRekit(){super("DonutAutoRekit",Category.DONUT,"Requests the server kit on a timer, subject to server cooldowns.");seconds.set(120);}
+        @Override protected String command(){return "kit";}
+    }
+    public static final class DonutAutoLog extends Module {
+        private final NumberSetting health=add(new NumberSetting("Health threshold",8,1,20,1));
+        private final NumberSetting delay=add(new NumberSetting("Confirm ticks",3,1,40,1));
+        private int low;
+        public DonutAutoLog(){super("DonutAutoLog",Category.DONUT);describe("Disconnect locally after sustained low health. Does not guarantee your character's safety.");}
+        @Override public void onTick(){
+            if(mc.player==null || mc.player.connection==null){low=0;return;}
+            if(mc.player.getHealth()>health.get()){low=0;return;}
+            if(++low>=delay.getI()){
+                setEnabled(false);
+                mc.getConnection().getConnection().disconnect(Component.literal("Drainer auto-log: low health"));
+            }
+        }
+        @Override public void onDisable(){low=0;}
+    }
+    public static final class DonutPingComp extends Module {
+        private final NumberSetting maxPing=add(new NumberSetting("Warning ping (ms)",150,40,1000,10));
+        private final BoolSetting hud=add(new BoolSetting("Show warning HUD",true));
+        private int ping,check;
+        public DonutPingComp(){super("DonutPingComp",Category.DONUT); describe("Displays a high-latency warning; does not alter network packets.");}
+        @Override public void onTick(){
+            if(mc.player==null||mc.getConnection()==null){ping=0;return;}
+            if(--check>0)return;check=20;
+            var info=mc.getConnection().getPlayerInfo(mc.player.getUUID());
+            ping=info==null?0:info.getLatency();
+        }
+        @Override public void onHud(GuiGraphicsExtractor g,float delta){
+            if(hud.get() && mc.player!=null && ping>maxPing.getI()){
+                String s="DR  |  HIGH PING: "+ping+" ms";
+                Ui.pill(g,8,44,Ui.textW(s)+14,20);
+                Ui.text(g,s,15,50,0xFFFFA8C0);
+            }
+        }
+    }
+    public static final class DonutSpawnerDetect extends Module {
+        private final NumberSetting radius=add(new NumberSetting("Search radius",8,2,16,1));
+        private int ticks,count;
+        public DonutSpawnerDetect(){super("DonutSpawnerDetect",Category.DONUT);describe("Counts spawner blocks in a small loaded area. Scan limited to once every 2 seconds.");}
+        @Override public void onTick(){
+            if(mc.player==null||mc.level==null){count=0;return;}
+            if(--ticks>0)return;ticks=40;
+            int r=radius.getI(),total=0;
+            BlockPos origin=mc.player.blockPosition();
+            for(int x=-r;x<=r;x++)for(int z=-r;z<=r;z++)for(int y=-r;y<=r;y++){
+                BlockPos pos=origin.offset(x,y,z);
+                if(!mc.level.getChunkSource().hasChunk(pos.getX()>>4,pos.getZ()>>4))continue;
+                if(mc.level.getBlockState(pos).is(Blocks.SPAWNER))total++;
+            }
+            count=total;
+        }
+        @Override public void onHud(GuiGraphicsExtractor g,float delta){
+            if(mc.player==null || count<=0)return;
+            String s="DR  |  Spawners nearby: "+count;
+            Ui.pill(g,8,67,Ui.textW(s)+14,20);
+            Ui.text(g,s,15,73,0xFFE9C7FF);
+        }
+    }
+    public static final class DonutAutoFarm extends Module {
+        private final NumberSetting interval=add(new NumberSetting("Interval (ticks)",5,2,40,1));
+        private int timer;
+        public DonutAutoFarm(){super("DonutAutoFarm",Category.DONUT);describe("Breaks the crop under your crosshair; does not automatically replant or navigate.");}
+        @Override public void onTick(){
+            if(mc.player==null||mc.level==null||mc.gameMode==null||mc.gui.screen()!=null)return;
+            if(--timer>0)return;timer=interval.getI();
+            if(!(mc.hitResult instanceof BlockHitResult hit))return;
+            var type=mc.level.getBlockState(hit.getBlockPos()).getBlock();
+            if(type!=Blocks.WHEAT && type!=Blocks.CARROTS && type!=Blocks.POTATOES && type!=Blocks.BEETROOTS && type!=Blocks.NETHER_WART)return;
+            mc.gameMode.continueDestroyBlock(hit.getBlockPos(),hit.getDirection());
+            mc.player.swing(InteractionHand.MAIN_HAND);
+        }
+    }
+    /** Covers both submitted DonutChestSteal and DonutAutoSellChest: their behavior was identical. */
+    public static final class DonutChestTransfer extends Module {
+        private final NumberSetting interval=add(new NumberSetting("Interval (ticks)",6,3,40,1));
+        private int timer;
+        public DonutChestTransfer(){super("DonutChestTransfer",Category.DONUT);describe("Quick-moves one item stack from an opened chest per interval.");}
+        @Override public void onTick(){
+            if(mc.player==null||mc.gameMode==null||!(mc.player.containerMenu instanceof ChestMenu menu) || mc.gui.screen()==null)return;
+            if(--timer>0)return;timer=interval.getI();
+            int chestSlots=menu.getRowCount()*9;
+            for(int i=0;i<chestSlots;i++){
+                if(menu.slots.get(i).getItem().isEmpty())continue;
+                mc.gameMode.handleContainerInput(menu.containerId,i,0,ContainerInput.QUICK_MOVE,mc.player);
+                return;
+            }
+        }
+    }
+    public static final class DonutAutoCraft extends Module {
+        private final NumberSetting interval=add(new NumberSetting("Interval (ticks)",8,4,80,1));
+        private final ModeSetting result=add(new ModeSetting("Result","Diamond block","Diamond block","Gold block","Iron block","Emerald block"));
+        private int timer;
+        public DonutAutoCraft(){super("DonutAutoCraft",Category.DONUT);describe("Takes the chosen result from a prepared crafting grid; it does not fill recipes.");}
+        @Override public void onTick(){
+            if(mc.player==null||mc.gameMode==null||mc.gui.screen()==null)return;
+            if(!(mc.player.containerMenu instanceof net.minecraft.world.inventory.CraftingMenu menu))return;
+            if(--timer>0)return;timer=interval.getI();
+            ItemStack stack=menu.slots.get(0).getItem();
+            var expected=switch(result.get()){
+                case "Gold block" -> Items.GOLD_BLOCK;
+                case "Iron block" -> Items.IRON_BLOCK;
+                case "Emerald block" -> Items.EMERALD_BLOCK;
+                default -> Items.DIAMOND_BLOCK;
+            };
+            if(!stack.isEmpty() && stack.is(expected))
+                mc.gameMode.handleContainerInput(menu.containerId,0,0,ContainerInput.QUICK_MOVE,mc.player);
+        }
+    }
+    public static final class DonutLoadout extends Module {
+        private final ModeSetting profile=add(new ModeSetting("Profile","Travel","Travel","Economy","Farming","Combat"));
+        public DonutLoadout(){super("DonutLoadout",Category.DONUT);describe("Applies a Drainer-native module profile once, without touching placeholders.");}
+        @Override public void onEnable(){
+            if(Lovenote.modules==null){setEnabled(false);return;}
+            switch(profile.get()){
+                case "Travel" -> {toggle("AutoSprint",true);toggle("DonutAutoWarp",false);toggle("DonutAutoFarm",false);}
+                case "Economy" -> {toggle("AutoSell",true);toggle("DonutAutoBuy",false);toggle("DonutAutoFarm",false);}
+                case "Farming" -> {toggle("DonutAutoFarm",true);toggle("AutoSell",false);toggle("AutoSprint",false);}
+                case "Combat" -> {toggle("DonutAutoLog",true);toggle("DonutAutoFarm",false);toggle("AutoSell",false);}
+            }
+            setEnabled(false);
+        }
+        private void toggle(String name,boolean enabled){
+            for(Module m:Lovenote.modules.all())if(m.name.equals(name) && m!=this && !(m instanceof UnportedModule)){
+                m.setEnabled(enabled);break;
+            }
+        }
+    }
+    public static final class HypixelScaffold extends Module {
+        private final NumberSetting interval=add(new NumberSetting("Interval (ticks)",5,2,40,1));
+        private int timer;
+        public HypixelScaffold(){super("HypixelScaffold",Category.HYPIXEL);alsoIn.add(Category.RAGE);describe("Places a hotbar block below your feet if an adjacent support block exists.");}
+        @Override public void onTick(){
+            if(mc.player==null||mc.level==null||mc.gameMode==null||mc.gui.screen()!=null)return;
+            if(--timer>0)return;timer=interval.getI();
+            BlockPos pos=mc.player.blockPosition().below();
+            BlockUtil.placeAnyBlock(pos);
+        }
+    }
+    public static final class HypixelNoSlow extends Module {
+        public HypixelNoSlow(){super("HypixelNoSlow",Category.HYPIXEL);alsoIn.add(Category.RAGE);describe("Experimental: requests sprint while using an item; does not bypass server slowdowns.");}
+        @Override public void onTick(){
+            if(mc.player==null||mc.gui.screen()!=null)return;
+            if(mc.player.isUsingItem() && mc.options.keyUp.isDown())mc.player.setSprinting(true);
+        }
+    }
+    public static final class HypixelAntiVoid extends Module {
+        private final NumberSetting threshold=add(new NumberSetting("Minimum Y",0,-64,128,1));
+        public HypixelAntiVoid(){super("HypixelAntiVoid",Category.HYPIXEL);alsoIn.add(Category.MOVEMENT);describe("Experimental local upward impulse when falling below Y threshold. No server rescue guarantee.");}
+        @Override public void onTick(){
+            if(mc.player==null||mc.level==null||mc.gui.screen()!=null)return;
+            if(mc.player.getY() < threshold.get() && mc.player.getDeltaMovement().y<-.25){
+                var v=mc.player.getDeltaMovement();mc.player.setDeltaMovement(v.x,.42,v.z);
+            }
+        }
+    }
+    /** One shared emergency-use implementation instead of duplicated HypixelAutoGap + DonutSpawnGuard. */
+    public static final class EmergencyGap extends Module {
+        private final NumberSetting health=add(new NumberSetting("Use below health",12,1,20,1));
+        private int previousSlot=-1;
+        private boolean using, originalUse;
+        public EmergencyGap(){super("EmergencyGap",Category.RAGE);alsoIn.add(Category.DONUT);alsoIn.add(Category.HYPIXEL);describe("Attempts to eat a golden apple when health is low. Single shared implementation.");}
+        @Override public void onTick(){
+            if(mc.player==null||mc.level==null||mc.gui.screen()!=null){stop();return;}
+            if(using){if(mc.player.getHealth()>health.get()||!mc.player.isUsingItem())stop();return;}
+            if(mc.player.getHealth()>health.get()||mc.options.keyUse.isDown())return;
+            var inv=mc.player.getInventory();
+            for(int i=0;i<9;i++){
+                ItemStack stack=inv.getItem(i);
+                if(!stack.is(Items.GOLDEN_APPLE) && !stack.is(Items.ENCHANTED_GOLDEN_APPLE))continue;
+                previousSlot=inv.getSelectedSlot();originalUse=mc.options.keyUse.isDown();
+                inv.setSelectedSlot(i);mc.options.keyUse.setDown(true);using=true;return;
+            }
+        }
+        private void stop(){
+            if(using && mc.options!=null && !originalUse)mc.options.keyUse.setDown(false);
+            if(using && mc.player!=null&&previousSlot>=0)mc.player.getInventory().setSelectedSlot(previousSlot);
+            using=false;previousSlot=-1;
+        }
+        @Override public void onDisable(){stop();}
+    }
+    /** Shared native offhand refill for both Hypixel and Donut; uses bundled Meteor inventory helper. */
+    public static final class OffhandTotem extends Module {
+        private final NumberSetting interval=add(new NumberSetting("Check interval (ticks)",10,4,40,1));
+        private int ticks,spare;
+        public OffhandTotem(){super("OffhandTotem",Category.RAGE);alsoIn.add(Category.DONUT);alsoIn.add(Category.HYPIXEL);describe("Moves a spare totem into your offhand. Uses existing client inventory transaction handling.");}
+        @Override public void onTick(){
+            if(mc.player==null||mc.gameMode==null||mc.gui.screen()!=null)return;
+            if(--ticks>0)return;ticks=interval.getI();
+            if(mc.player.getOffhandItem().is(Items.TOTEM_OF_UNDYING))return;
+            var found=meteordevelopment.meteorclient.utils.player.InvUtils.find(Items.TOTEM_OF_UNDYING);
+            spare=found.count();
+            if(found.found()) meteordevelopment.meteorclient.utils.player.InvUtils.move().from(found.slot()).toOffhand();
+        }
+        @Override public void onHud(GuiGraphicsExtractor g,float delta){
+            if(mc.player==null || mc.player.getOffhandItem().is(Items.TOTEM_OF_UNDYING))return;
+            String s="DR  |  Totem missing  (spares: "+spare+")";
+            Ui.pill(g,8,90,Ui.textW(s)+14,20);
+            Ui.text(g,s,15,96,0xFFFFB8BD);
+        }
+    }
+    public static final class ServerMobAura extends Module {
+        private final NumberSetting range=add(new NumberSetting("Range",3,2,4.5,.1));
+        private final NumberSetting interval=add(new NumberSetting("Attack interval (ticks)",6,3,20,1));
+        private int ticks;
+        public ServerMobAura(){super("ServerMobAura",Category.RAGE);alsoIn.add(Category.DONUT);alsoIn.add(Category.HYPIXEL);describe("One shared nearby-mob attack implementation for both tabs; not an anti-cheat bypass.");}
+        @Override public void onTick(){
+            if(mc.player==null||mc.level==null||mc.gameMode==null||mc.gui.screen()!=null)return;
+            if(--ticks>0)return;ticks=interval.getI();
+            Entity closest=null;double best=range.get()*range.get();
+            for(Entity entity:mc.level.entitiesForRendering()){
+                if(entity==mc.player|| !(entity instanceof LivingEntity living)||!living.isAlive()||entity instanceof Player)continue;
+                double distance=mc.player.distanceToSqr(entity);
+                if(distance<best){closest=entity;best=distance;}
+            }
+            if(closest!=null){mc.gameMode.attack(mc.player,closest);mc.player.swing(InteractionHand.MAIN_HAND);}
+        }
+    }
+    /** Records and plays back only movement keys; suitable for locally permitted automation. */
+    public static final class MacroRecorder extends Module {
+        private final BoolSetting recording=add(new BoolSetting("Recording",false));
+        private final BoolSetting playback=add(new BoolSetting("Playback",false));
+        private final BoolSetting loop=add(new BoolSetting("Loop replay",false));
+        private final BoolSetting clear=add(new BoolSetting("Clear recording",false));
+        private final NumberSetting maxSeconds=add(new NumberSetting("Max seconds",45,5,120,5));
+        private final List<Integer> samples=new ArrayList<>();
+        private int playIndex;
+        private boolean wasRecording,wasPlaying;
+        public MacroRecorder(){super("MacroRecorder",Category.MISC);alsoIn.add(Category.HYPIXEL);alsoIn.add(Category.DONUT);
+            describe("Records and replays movement keys (WASD/jump/sneak), with loop and emergency stop. Use only where allowed.");}
+        @Override public void onEnable(){recording.set(false);playback.set(false);wasPlaying=false;wasRecording=false;}
+        @Override public void onTick(){
+            if(clear.get()){
+                stopKeys();samples.clear();recording.set(false);playback.set(false);
+                wasPlaying=false;wasRecording=false;playIndex=0;clear.set(false);return;
+            }
+            if(mc.player==null||mc.gui.screen()!=null){
+                if(wasPlaying)stopKeys();playback.set(false);wasPlaying=false;
+                if(recording.get())recording.set(false);wasRecording=false;return;
+            }
+            if(recording.get()){
+                if(wasPlaying){stopKeys();playback.set(false);wasPlaying=false;}
+                if(!wasRecording){samples.clear();playIndex=0;wasRecording=true;}
+                if(samples.size()>=maxSeconds.getI()*20){recording.set(false);wasRecording=false;return;}
+                int mask=(mc.options.keyUp.isDown()?1:0)|(mc.options.keyDown.isDown()?2:0)
+                  |(mc.options.keyLeft.isDown()?4:0)|(mc.options.keyRight.isDown()?8:0)
+                  |(mc.options.keyJump.isDown()?16:0)|(mc.options.keyShift.isDown()?32:0);
+                samples.add(mask);return;
+            }
+            wasRecording=false;
+            if(!playback.get() || samples.isEmpty()){
+                if(wasPlaying)stopKeys();playback.set(false);wasPlaying=false;return;
+            }
+            if(!wasPlaying){playIndex=0;wasPlaying=true;}
+            if(playIndex>=samples.size()){
+                if(loop.get())playIndex=0;
+                else {playback.set(false);stopKeys();wasPlaying=false;return;}
+            }
+            int mask=samples.get(playIndex++);
+            mc.options.keyUp.setDown((mask&1)!=0);
+            mc.options.keyDown.setDown((mask&2)!=0);
+            mc.options.keyLeft.setDown((mask&4)!=0);
+            mc.options.keyRight.setDown((mask&8)!=0);
+            mc.options.keyJump.setDown((mask&16)!=0);
+            mc.options.keyShift.setDown((mask&32)!=0);
+        }
+        private void stopKeys(){
+            if(mc.options==null)return;
+            mc.options.keyUp.setDown(false);mc.options.keyDown.setDown(false);
+            mc.options.keyLeft.setDown(false);mc.options.keyRight.setDown(false);
+            mc.options.keyJump.setDown(false);mc.options.keyShift.setDown(false);
+        }
+        @Override public void onDisable(){
+            if(wasPlaying)stopKeys();wasPlaying=false;wasRecording=false;
+            recording.set(false);playback.set(false);playIndex=0;
+        }
+        @Override public void saveExtra(JsonObject o){
+            StringBuilder s=new StringBuilder();for(int v:samples){if(!s.isEmpty())s.append(',');s.append(v);}o.addProperty("macroSamples",s.toString());
+        }
+        @Override public void loadExtra(JsonObject o){
+            samples.clear();recording.set(false);playback.set(false);
+            wasPlaying=false;wasRecording=false;playIndex=0;
+            if(!o.has("macroSamples"))return;
+            String raw=o.get("macroSamples").getAsString();
+            for(String p:raw.split(",")){if(samples.size()>=2400)break;
+                try{int v=Integer.parseInt(p);if(v>=0&&v<64)samples.add(v);}catch(NumberFormatException ignored){}
+            }
+        }
+        @Override public void onHud(GuiGraphicsExtractor g,float delta){
+            if(mc.player==null)return;
+            String state=recording.get()?"RECORDING":playback.get()?"REPLAY":"READY";
+            String s="DR MACRO  |  "+state+"  "+samples.size()+" ticks";
+            Ui.pill(g,8,113,Ui.textW(s)+14,20);
+            Ui.text(g,s,15,119,recording.get()?0xFFFF9CCF:0xFFE8D7F2);
+        }
+    }
+}

@@ -47,7 +47,7 @@ public class LovenoteEvents {
             }
         }
 
-        if(mc.gui.screen() != null) {
+        if(mc.gui.screen() instanceof meteordevelopment.meteorclient.systems.hud.screens.HudEditorScreen) {
             boolean down=GLFW.glfwGetMouseButton(mc.getWindow().handle(),GLFW.GLFW_MOUSE_BUTTON_LEFT)==GLFW.GLFW_PRESS;
             double mx=mc.mouseHandler.xpos()*GfxWidth(mc)/Math.max(1,mc.getWindow().getWidth());
             double my=mc.mouseHandler.ypos()*GfxHeight(mc)/Math.max(1,mc.getWindow().getHeight());
@@ -60,10 +60,10 @@ public class LovenoteEvents {
         LovenoteConfig.tick();
     }
 
-    // Interact while a screen with a visible cursor is open (e.g. chat/inventory).
+    // Drag and click floating media widgets only in the HUD editor; normal menus retain input.
     @EventHandler
     public static void onMediaClick(MouseClickEvent e) {
-        if (Lovenote.modules == null || Minecraft.getInstance().gui.screen() == null || e.button()!=0) return;
+        if (Lovenote.modules == null || !(Minecraft.getInstance().gui.screen() instanceof meteordevelopment.meteorclient.systems.hud.screens.HudEditorScreen) || e.button()!=0) return;
         boolean down=e.action==KeyAction.Press;
         for(Module m:Lovenote.modules.all()) {
             if(m instanceof SpotifyHud hud && hud.click(e.click.x(),e.click.y(),down)) {e.cancel();return;}
@@ -89,6 +89,9 @@ public class LovenoteEvents {
     public static void onRender2D(Render2DEvent e) {
         if (Lovenote.modules == null) return;
 
+        // In Drainer's own HUD editor widgets are rendered in its preview, not twice.
+        if (Minecraft.getInstance().gui.screen() instanceof
+            meteordevelopment.meteorclient.gui.screens.LovenoteModulesScreen screen && screen.isDrainerHudEditor()) return;
         Lovenote.modules.hud(e.graphics, e.tickDelta);
     }
 }

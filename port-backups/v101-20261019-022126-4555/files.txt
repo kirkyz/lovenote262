@@ -1,0 +1,12 @@
+src/main/java/com/lovenote/module/ModuleManager.java
+src/main/java/com/lovenote/module/impl/AntiBot.java
+src/main/java/com/lovenote/module/impl/AutoFish.java
+src/main/java/com/lovenote/module/impl/AutoPotion.java
+src/main/java/com/lovenote/module/impl/AutoReconnect.java
+src/main/java/com/lovenote/module/impl/AutoRespawn.java
+src/main/java/com/lovenote/module/impl/CommandMacro.java
+src/main/java/com/lovenote/module/impl/LootBeam.java
+src/main/java/com/lovenote/module/impl/ServerInfo.java
+src/main/java/com/lovenote/module/impl/SpawnerESP.java
+src/main/java/com/lovenote/module/impl/StaffDetector.java
+src/main/java/com/lovenote/module/impl/ported/DrainerServerMacros.java

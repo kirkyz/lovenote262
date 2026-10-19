@@ -10,16 +10,23 @@ import com.lovenote.util.Gfx;
 import com.lovenote.util.Logos;
 import com.lovenote.util.Ui;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.resources.Identifier;
 
 /** Spinning client logo next to your name, with optional live info. */
 public class LogoWidget extends Module {
+    // Minecraft loads this texture from the mod JAR and caches it on the GPU.
+    // Avoid generating a procedural logo atlas during HUD rendering.
+    private static final Identifier FAST_ICON = Identifier.fromNamespaceAndPath(
+            "lovenote", "textures/gui/drainer_hud_icon.png");
+    private final ModeSetting rendering = add(new ModeSetting(
+            "Rendering", "Performance", "Performance", "Animated"));
 	private final ModeSetting style = add(new ModeSetting("Logo", "Image", Logos.STYLES));
-	private final NumberSetting size = add(new NumberSetting("Logo size", 64, 6, 128, 1));
+	private final NumberSetting size = add(new NumberSetting("Logo size", 20, 6, 128, 1));
 	private final NumberSetting spin = add(new NumberSetting("Spin speed", 1.0, 0.0, 6.0, 0.05));
-	private final ModeSetting spinMode = add(new ModeSetting("Spin", "Spin", "Spin", "Pulse", "Spin + Pulse", "Static"));
+	private final ModeSetting spinMode = add(new ModeSetting("Spin", "Static", "Spin", "Pulse", "Spin + Pulse", "Static"));
 	private final NumberSetting x = add(new NumberSetting("X", 0.012, 0.0, 0.95, 0.002));
 	private final NumberSetting y = add(new NumberSetting("Y", 0.012, 0.0, 0.95, 0.002));
-	private final BoolSetting frame = add(new BoolSetting("Frame", true));
+	private final BoolSetting frame = add(new BoolSetting("Frame", false));
 	private final NumberSetting pad = add(new NumberSetting("Padding", 4, 1, 16, 1));
 	private final BoolSetting showName = add(new BoolSetting("Show name", true));
 	private final ModeSetting nameText = add(new ModeSetting("Name", "lovenote", "lovenote", "Lovenote", "Custom"));
@@ -38,27 +45,26 @@ public class LogoWidget extends Module {
 	}
 
 	private String label() {
-		return nameText.is("Custom") ? customName.get() : nameText.get();
+		String configured = nameText.is("Custom") ? customName.get() : nameText.get();
+		return configured.equalsIgnoreCase("lovenote") ? "drainer" : configured;
 	}
 
 	@Override
 	public void onHud(GuiGraphicsExtractor g, float td) {
 		if (mc.player == null) return;
-		Logos.setStyle(style.index());
-                Logos.setTint(3);
-                Logos.keyBlack = false;
-		Ui.push(Interface.INSTANCE);
+		// No Logos.setStyle / setTint / Ui.push here: those can cause the
+		// shared procedural texture atlas to be invalidated each frame.
 
 		int px = (int) (x.get() * Gfx.guiW());
 		int py = (int) (y.get() * Gfx.guiH());
 
 		double t = System.nanoTime() / 1_000_000_000.0;
 		double angle = 0;
-		if (spinMode.is("Spin") || spinMode.is("Spin + Pulse"))
-    angle = t * spin.get() * Math.PI * 2.0;
-		int sz = size.getI();
-		if (spinMode.is("Pulse") || spinMode.is("Spin + Pulse"))
-			sz = (int) (sz * (0.9 + 0.1 * Math.sin(t * 2.2)));
+		if (rendering.is("Animated") &&
+                (spinMode.is("Spin") || spinMode.is("Spin + Pulse"))) {
+            angle = t * spin.get() * Math.PI * 2.0;
+        }
+		int sz = Math.max(12, Math.min(24, size.getI())); // Fixed dimensions: no resize animation.
 
 		String name = label();
 		String infoStr = info.get() ? buildInfo() : "";
@@ -71,10 +77,22 @@ public class LogoWidget extends Module {
 		// Reposition the entire widget, not just the image, so the label stays visible.
 		px = Math.max(0, Math.min(px, Math.max(0, Gfx.guiW() - bw - 2)));
 		py = Math.max(0, Math.min(py, Math.max(0, Gfx.guiH() - bh - 2)));
-		if (frame.get()) Ui.pill(g, px, py, bw, bh);
+		if (frame.get()) {
+			Ui.rrect(g, px, py, bw, bh, 5, 0xE5111020);
+			Ui.rect(g, px + 6, py + bh - 2, Math.max(0, bw - 12), 1, 0xFF8F638F);
+		}
 
 		int tx = px + p;
-		Logos.draw(g, tx, py + (bh - sz) / 2, sz, angle, style.index());
+		if (rendering.is("Performance")) {
+            // Static, prepacked resource: no procedural texture baking/upload.
+            Gfx.blit(g, FAST_ICON, tx, py + (bh - sz) / 2,
+                    0f, 0f, sz, sz, 64, 64, 64, 64);
+        } else {
+            // Legacy animated shapes are preserved as an opt-in alternative.
+            Logos.setTint(3);
+            Logos.keyBlack = false;
+            Logos.draw(g, tx, py + (bh - sz) / 2, sz, angle, style.index());
+        }
 		tx += sz + gap.getI();
 
 		if (showName.get()) {

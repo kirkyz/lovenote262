@@ -4,11 +4,11 @@ package meteordevelopment.meteorclient.gui.themes.lovenote;
 public final class LovenoteMenuConfig {
     private LovenoteMenuConfig() {}
 
-    public static int menuScale = 75;
-    public static int windowWidth = 760;
-    public static int windowHeight = 430;
+    public static int menuScale = 95;
+    public static int windowWidth = 870;
+    public static int windowHeight = 530;
     public static int corner = 12;
-    public static int railWidth = 132;
+    public static int railWidth = 146;
     public static boolean railRight = false;
     public static int columns = 1;
     public static boolean compact = false;

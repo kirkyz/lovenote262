@@ -1,0 +1,462 @@
+--- a/src/main/java/com/lovenote/module/ModuleManager.java
++++ b/src/main/java/com/lovenote/module/ModuleManager.java
+@@ -95,7 +95,7 @@
+ 		register(new AutoTool());
+ 		register(new AutoLog());
+ 		register(new AutoRespawn());
+-		register(new Sprint());
++		// V9 deduplicated: Sprint (placeholder; AutoSprint and ToggleSprint are implemented).
+ 		register(new Speed());
+ 		register(new Flight());
+ 		register(new Bhop());
+@@ -186,7 +186,7 @@
+ 		register(new DeathCoords());
+ 		register(new AutoGG());
+ 		register(new ChestTracker());
+-		register(new InterfaceModule());
++		// V9 deduplicated: InterfaceModule (placeholder; Interface is the real settings module).
+ 		register(new Watermark());
+ 		register(new DrainerInfoBar());
+ 		register(new SpotifyHud());
+@@ -203,11 +203,11 @@
+ 		register(new Radar());
+ 		register(new ModuleList());
+ 		register(new HitLog());
+-		register(new InfoHud());
+-		register(new PotionList());
++		// V9 deduplicated: InfoHud (FPS/server text already available through other implemented HUD widgets).
++		// V9 deduplicated: PotionList (PotionsWidget is the configurable positioned version).
+ 		register(new ArmorHud());
+ 		register(new CpsHud());
+-		register(new CoordsHud());
++		// V9 deduplicated: CoordsHud (equivalent position widget; Coordinates remains).
+ 		register(new PingHud());
+ 		register(new TabList());
+ 		register(new ComboCounter());
+--- a/src/main/java/com/lovenote/module/impl/Lyrics.java
++++ b/src/main/java/com/lovenote/module/impl/Lyrics.java
+@@ -59,15 +59,23 @@
+     private static List<Line> parse(String raw) {
+         List<Line> out = new ArrayList<>();
+         for (String row : raw.split("\\R")) {
+-            int end = row.indexOf(']');
+-            if (!row.startsWith("[") || end < 0) continue;
+-            String[] p = row.substring(1, end).split(":");
+-            if (p.length != 2) continue;
+-            try {
+-                long ms = Math.round((Integer.parseInt(p[0]) * 60 + Double.parseDouble(p[1])) * 1000);
+-                String words = row.substring(end+1).trim();
+-                if (!words.isEmpty()) out.add(new Line(ms, words));
+-            } catch (NumberFormatException ignored) { }
++            // Some LRC files repeat timestamps before a single lyric line.
++            int offset=0;
++            java.util.List<Long> stamps=new ArrayList<>();
++            while (offset<row.length() && row.charAt(offset)=='[') {
++                int close=row.indexOf(']',offset);
++                if (close<0)break;
++                String stamp=row.substring(offset+1,close);
++                String[] parts=stamp.split(":");
++                if (parts.length!=2)break;
++                try {
++                    long millis=Math.round((Integer.parseInt(parts[0])*60+Double.parseDouble(parts[1]))*1000);
++                    if(millis>=0)stamps.add(millis);
++                } catch (NumberFormatException ignored) {break;}
++                offset=close+1;
++            }
++            String words=row.substring(offset).trim();
++            if (!words.isEmpty()) for(long ms:stamps) out.add(new Line(ms,words));
+         }
+         out.sort(Comparator.comparingLong(Line::ms));
+         return out;
+@@ -95,6 +103,9 @@
+                     double diff = Math.abs(duration / 1000.0 - o.get("duration").getAsDouble());
+                     score += diff > 8 ? 100 + diff : diff;
+                 }
++                // A completely different release/mix is much more distracting than no lyrics.
++                if (duration > 0 && o.has("duration") && !o.get("duration").isJsonNull()
++                    && Math.abs(duration / 1000.0 - o.get("duration").getAsDouble()) > 18) continue;
+                 if (score < bestScore) { bestScore = score; best = parsed; }
+             }
+             if (track.equals(key)) { lines = List.copyOf(best); status = best.isEmpty() ? "No timed lyrics found" : ""; }
+@@ -128,17 +139,18 @@
+         String s = fit(line.text, limit);
+         if (s.isEmpty()) return;
+         if (!karaoke.get() || end <= start) { Ui.text(g, s, textX, textY, 0xFFF0B8DD); return; }
+-        String[] words = s.split(" ");
+-        int weighted = 0;
+-        for (String word : words) weighted += Math.max(2, word.length());
+-        double elapsed = Math.max(0, Math.min(1, (double) (SpotifyManager.I.progress()+timingOffset.getI()-start) / (end-start)));
+-        int budget = (int) Math.round(elapsed * weighted), used = 0, cursor = textX;
+-        for (int i=0; i<words.length; i++) {
+-            String token = words[i] + (i == words.length-1 ? "" : " ");
+-            used += Math.max(2, words[i].length());
+-            Ui.text(g, token, cursor, textY, used <= budget ? 0xFFFFA9DB : 0xFF8C7C9C);
+-            cursor += Ui.textW(token);
++        double fraction=Math.max(0,Math.min(1,(double)
++            (SpotifyManager.I.progress()+timingOffset.getI()-start)/(end-start)));
++        // Estimated character progression from line timestamps, not true per-word timing.
++        // Two draw calls prevent expensive one-character-at-a-time rendering.
++        int split=(int)Math.round(s.length()*fraction);
++        int cursor=textX;
++        if(split>0) {
++            String lit=s.substring(0,split);
++            Ui.text(g,lit,cursor,textY,0xFFFFB0E4);
++            cursor+=Ui.textW(lit);
+         }
++        if(split<s.length()) Ui.text(g,s.substring(split),cursor,textY,0xFF91829F);
+     }
+     @Override public void onHud(GuiGraphicsExtractor g, float delta) {
+         SpotifyManager m = SpotifyManager.I;
+--- a/src/main/java/com/lovenote/spotify/SpotifyManager.java
++++ b/src/main/java/com/lovenote/spotify/SpotifyManager.java
+@@ -23,6 +23,7 @@
+     public volatile String title = "", artist = "", album = "", status = "Starting bridge";
+     public volatile boolean connected, hasTrack, playing;
+     public volatile long progressMs, durationMs, progressStamp;
++    private volatile long progressNanos;
+     public volatile Identifier artTexture;
+     private volatile String lastCover = "";
+     private volatile boolean started;
+@@ -42,9 +43,9 @@
+         started = true;
+         Thread t = new Thread(() -> {
+             while (!Thread.currentThread().isInterrupted()) {
+-                try { poll(); Thread.sleep(2500); }
++                try { poll(); Thread.sleep(850); }
+                 catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+-                catch (Exception e) { connected = false; hasTrack = false; status = "Bridge error: " + e.getMessage();
++                catch (Exception e) { connected = false; hasTrack = false; playing = false; status = "Bridge error: " + e.getMessage();
+                     try { Thread.sleep(2500); } catch (InterruptedException x) { Thread.currentThread().interrupt(); } }
+             }
+         }, "Drainer-Spotify-Poll");
+@@ -84,6 +85,7 @@
+         progressMs = o.has("progressMs") ? o.get("progressMs").getAsLong() : 0;
+         durationMs = o.has("durationMs") ? o.get("durationMs").getAsLong() : 0;
+         progressStamp = System.currentTimeMillis();
++        progressNanos = System.nanoTime();
+         hasTrack = !title.isBlank();
+         status = hasTrack ? "Connected" : "No track available";
+         String cover = str(o, "cover");
+@@ -106,7 +108,9 @@
+         }
+     }
+     public long progress() {
+-        long p = progressMs + (playing ? Math.max(0, System.currentTimeMillis() - progressStamp) : 0);
++        long sinceMs = Math.max(0L, (System.nanoTime() - progressNanos) / 1_000_000L);
++        // Use the last bridge position as an anchor; never advance while paused.
++        long p = progressMs + (playing ? Math.min(1500L, sinceMs) : 0);
+         return Math.max(0, durationMs > 0 ? Math.min(durationMs, p) : p);
+     }
+     private void command(String... args) {
+--- a/src/main/java/meteordevelopment/meteorclient/gui/screens/LovenoteModulesScreen.java
++++ b/src/main/java/meteordevelopment/meteorclient/gui/screens/LovenoteModulesScreen.java
+@@ -159,139 +159,184 @@
+         if(sy!=null)sy.set(Math.max(0,Math.min(1,y/Math.max(1,height))));
+     }
+     private void hudDraw(GuiGraphicsExtractor g,int mouseX,int mouseY,float delta) {
+-        // No oscillating transforms, no growing/shrinking animation.
++        // The editor is native to Drainer; leave the game/HUD visible between compact panels.
+         ga=1f;
+         hudHits.clear();
+-        g.fill(0,0,width,height,0x8A080713);
+-        if (com.lovenote.Lovenote.modules != null) {
+-            // Render Drainer widgets, not Meteor HUD widgets.
+-            for(com.lovenote.module.Module m : hudModules()) if(m.enabled) m.onHud(g,delta);
+-        }
+-        int left=14, sideW=224, right=width-248;
+-        rr(g,left,18,sideW,height-36,10,0xE812101D);
+-        rr(g,right,18,234,height-36,10,0xE812101D);
+-        fill(g,left+12,53,left+sideW-12,54,0xFF764A86);
+-        txtS(g,"DRAINER  /  HUD",left+14,30,0xFFF4D9F1);
+-        txt(g,"Your own widgets",left+14,60,0xFFAD9ABB);
++        g.fill(0,0,width,height,0x5B060611);
++        int margin=12;
++        int sideW=Math.max(140,Math.min(184,width/5));
++        int settingsW=Math.max(164,Math.min(216,width/4));
++        int left=margin, right=width-settingsW-margin;
++        // LovenoteEvents intentionally suppresses normal HUD drawing while this editor is
++        // open. Render just once here and clip it to the unobstructed preview area.
++        if(com.lovenote.Lovenote.modules!=null && right>left+sideW+20) {
++            g.enableScissor(left+sideW+7,0,right-7,height);
++            for(com.lovenote.module.Module m:hudModules())if(m.enabled)m.onHud(g,delta);
++            g.disableScissor();
++        }
++        int top=14, bottom=height-14, paneH=bottom-top;
++        rr(g,left,top,sideW,paneH,8,0xF10F0D1B);
++        rr(g,right,top,settingsW,paneH,8,0xF10F0D1B);
++        rr(g,left+8,top+8,3,17,2,0xFFE3A0DF);
++        txtS(g,"DRAINER / HUD",left+16,top+11,0xFFF4DEEE);
++        txt(g,"WIDGET LIBRARY",left+11,top+38,0xFFAE92BC);
++        fill(g,left+10,top+56,left+sideW-10,top+57,0xFF56405F);
+         java.util.List<com.lovenote.module.Module> mods=hudModules();
+-        int rows=Math.max(1,(height-155)/27), maxScroll=Math.max(0,mods.size()-rows);
+-        hudListScroll=Math.max(0,Math.min(maxScroll,hudListScroll));
+-        for(int i=hudListScroll; i<mods.size()&&i<hudListScroll+rows;i++) {
+-            com.lovenote.module.Module m=mods.get(i);
+-            int yy=84+(i-hudListScroll)*27;
+-            if(m==hudSelected)rr(g,left+8,yy-2,sideW-16,24,5,0xFF4F325B);
+-            txt(g,(m.enabled?"● ":"○ ")+m.name,left+14,yy+5,m.enabled?0xFFF0D5EC:0xFF96879F);
+-            rr(g,left+sideW-40,yy,24,18,5,m.enabled?0xFF885B99:0xFF352C3E);
+-            txt(g,m.enabled?"ON":"--",left+sideW-37,yy+5,0xFFFFFFFF);
+-            hudHit(left+8,yy-2,sideW-16,24,1,m,null);
+-            hudHit(left+sideW-40,yy,24,18,2,m,null);
+-        }
+-        txt(g,"Scroll to browse widgets",left+14,height-64,0xFF9E8DA8);
+-        rr(g,left+13,height-48,sideW-26,24,5,0xFF5B386D);
+-        txt(g,"Back to Drainer menu",left+26,height-40,0xFFFAE6FF);
+-        hudHit(left+13,height-48,sideW-26,24,6,null,null);
+-
+-        txtS(g,"WIDGET SETTINGS",right+13,30,0xFFF4D9F1);
+-        fill(g,right+12,53,right+222,54,0xFF764A86);
++        int listY=top+69, listBottom=bottom-57, rowH=23;
++        int rows=Math.max(1,(listBottom-listY)/rowH);
++        hudListScroll=Math.max(0,Math.min(Math.max(0,mods.size()-rows),hudListScroll));
++        g.enableScissor(left+5,listY-3,left+sideW-5,listBottom);
++        for(int i=hudListScroll;i<mods.size()&&i<hudListScroll+rows;i++) {
++            var m=mods.get(i);
++            int yy=listY+(i-hudListScroll)*rowH;
++            if(m==hudSelected)rr(g,left+7,yy-2,sideW-14,rowH-1,5,0xFF3C2A4C);
++            String name=m.name;
++            int available=sideW-64;
++            while(name.length()>5 && font.width(name)>available) name=name.substring(0,name.length()-2);
++            if(!name.equals(m.name))name+="…";
++            txt(g,name,left+12,yy+5,m.enabled?0xFFF5DCEF:0xFF9687A0);
++            rr(g,left+sideW-39,yy,28,16,4,m.enabled?0xFF855A91:0xFF2B2338);
++            txt(g,m.enabled?"ON":"OFF",left+sideW-36,yy+4,m.enabled?0xFFFFFFFF:0xFFA698AE);
++            hudHit(left+7,yy-2,sideW-14,rowH-1,1,m,null);
++            hudHit(left+sideW-39,yy,28,16,2,m,null);
++        }
++        g.disableScissor();
++        txt(g,"SCROLL FOR MORE",left+11,bottom-45,0xFF95829F);
++        rr(g,left+9,bottom-31,sideW-18,22,5,0xFF573465);
++        txt(g,"BACK",left+18,bottom-24,0xFFF8E8F7);
++        hudHit(left+9,bottom-31,sideW-18,22,6,null,null);
++
++        rr(g,right+8,top+8,3,17,2,0xFFE3A0DF);
++        txtS(g,"PROPERTIES",right+17,top+11,0xFFF4DEEE);
++        fill(g,right+10,top+35,right+settingsW-10,top+36,0xFF56405F);
+         if(hudSelected==null) {
+-            txt(g,"Select a widget on the left",right+13,70,0xFFB09BB8);
++            txt(g,"CHOOSE A WIDGET",right+12,top+60,0xFFB09BB8);
+         } else {
+-            txt(g,hudSelected.name,right+13,72,0xFFF3BDE5);
+-            txt(g,hudSelected.enabled?"Enabled":"Disabled",right+13,89,hudSelected.enabled?0xFFB6E8B7:0xFF9E8695);
+-            int yy=113;
++            String selectedName=hudSelected.name;
++            while(selectedName.length()>5 && font.width(selectedName)>settingsW-24)selectedName=selectedName.substring(0,selectedName.length()-2);
++            txt(g,selectedName,right+12,top+48,0xFFFFB8DF);
++            txt(g,hudSelected.enabled?"● ENABLED":"○ DISABLED",right+12,top+65,hudSelected.enabled?0xFFB2E0C1:0xFFA894AB);
++            int y=top+91;
++            int availableEnd=bottom-(hudSelected instanceof com.lovenote.module.impl.SpotifyHud?119:100);
++            if(hudSelected instanceof com.lovenote.module.impl.Lyrics)availableEnd=bottom-119;
+             int settingIndex=0;
++            g.enableScissor(right+6,y-2,right+settingsW-6,Math.max(y,availableEnd));
+             for(com.lovenote.setting.Setting st:hudSelected.settings) {
+-                if(settingIndex++<hudSettingsScroll) continue;
+-                if(yy+31>height-(hudSelected instanceof com.lovenote.module.impl.SpotifyHud ? 132 : 92))break;
++                if(settingIndex++<hudSettingsScroll)continue;
++                if(y+34>availableEnd)break;
++                int lineW=settingsW-25;
+                 if(st instanceof com.lovenote.setting.NumberSetting n) {
+-                    txt(g,st.name+"  "+String.format(java.util.Locale.ROOT,"%.2f",n.get()),right+13,yy,0xFFDFCCE4);
+-                    rr(g,right+13,yy+13,202,5,2,0xFF4B4055);
+-                    int fw=(int)(202*Math.max(0,Math.min(1,(n.get()-n.min)/Math.max(.001,n.max-n.min))));
+-                    rr(g,right+13,yy+13,Math.max(1,fw),5,2,0xFFE6A5D8);
+-                    hudHit(right+13,yy+8,202,18,3,hudSelected,st);
+-                    yy+=38;
++                    String name=st.name;
++                    while(name.length()>5&&font.width(name)>lineW-47)name=name.substring(0,name.length()-2);
++                    txt(g,name,right+12,y,0xFFD6C1DF);
++                    txt(g,String.format(java.util.Locale.ROOT,"%.2f",n.get()),right+settingsW-49,y,0xFFEFC6ED);
++                    rr(g,right+12,y+15,lineW,4,2,0xFF3B3046);
++                    int fw=(int)(lineW*Math.max(0,Math.min(1,(n.get()-n.min)/Math.max(.001,n.max-n.min))));
++                    if(fw>0)rr(g,right+12,y+15,fw,4,2,0xFFE8A0D9);
++                    hudHit(right+12,y+10,lineW,16,3,hudSelected,st);
++                    y+=32;
+                 } else if(st instanceof com.lovenote.setting.BoolSetting b) {
+-                    txt(g,(b.get()?"[x] ":"[ ] ")+st.name,right+13,yy+4,0xFFDFCCE4);
+-                    hudHit(right+13,yy,202,24,4,hudSelected,st);
+-                    yy+=30;
++                    txt(g,(b.get()?"● ":"○ ")+st.name,right+12,y+4,0xFFDFCCE4);
++                    hudHit(right+12,y,lineW,24,4,hudSelected,st);
++                    y+=28;
+                 } else if(st instanceof com.lovenote.setting.ModeSetting mode) {
+                     String val=mode.modes.length==0?"None":mode.modes[Math.max(0,Math.min(mode.modes.length-1,mode.index()))];
+-                    txt(g,st.name+": "+val+"  >",right+13,yy+4,0xFFDFCCE4);
+-                    hudHit(right+13,yy,202,24,10,hudSelected,st);
+-                    yy+=30;
++                    txt(g,st.name,right+12,y+2,0xFFAE98BE);
++                    txt(g,val+"  >",right+12,y+13,0xFFF0C9E8);
++                    hudHit(right+12,y,lineW,30,10,hudSelected,st);
++                    y+=34;
+                 }
+             }
++            g.disableScissor();
+             if(hudSelected instanceof com.lovenote.module.impl.SpotifyHud) {
+-                txt(g,"Playback controls",right+13,height-129,0xFFB7A3C5);
+-                int cy=height-113;
+-                rr(g,right+12,cy,66,23,5,0xFF4B385B); txt(g,"Prev",right+28,cy+7,0xFFFFD4EE);hudHit(right+12,cy,66,23,7,hudSelected,null);
+-                rr(g,right+84,cy,66,23,5,0xFF77457E); txt(g,"Play",right+101,cy+7,0xFFFFD4EE);hudHit(right+84,cy,66,23,8,hudSelected,null);
+-                rr(g,right+156,cy,66,23,5,0xFF4B385B); txt(g,"Next",right+172,cy+7,0xFFFFD4EE);hudHit(right+156,cy,66,23,9,hudSelected,null);
+-            }
+-            rr(g,right+12,height-76,210,24,6,0xFF5B386D);
+-            txt(g,"Move to screen centre",right+26,height-68,0xFFF6D9F0);
+-            hudHit(right+12,height-76,210,24,5,hudSelected,null);
+-            txt(g,"Drag a widget or edit X/Y",right+13,height-44,0xFFAD95B6);
+-        }
+-        txt(g,"DRAG WIDGETS  •  SCROLL LIST  •  ESC TO CLOSE",left+sideW+18,height-19,0xFFB18CBB);
+-        // Selected widget outline; drawing is static, no pulse/zoom animation.
+-        if(hudSelected!=null && hudSelected.enabled) {
++                txt(g,"PLAYBACK",right+12,bottom-111,0xFFAA90BB);
++                int btnW=(settingsW-34)/3,cy=bottom-94;
++                for(int i=0;i<3;i++){
++                    int bx=right+11+i*(btnW+5);
++                    rr(g,bx,cy,btnW,24,5,i==1?0xFF744B7F:0xFF342641);
++                    txt(g,i==0?"PREV":i==1?"PLAY":"NEXT",bx+7,cy+8,0xFFFCE2F1);
++                    hudHit(bx,cy,btnW,24,7+i,hudSelected,null);
++                }
++            }
++            if(hudSelected instanceof com.lovenote.module.impl.Lyrics) {
++                txt(g,"LYRIC SYNC  (±250ms)",right+12,bottom-111,0xFFAA90BB);
++                int bw=(settingsW-34)/3,cy=bottom-94;
++                String[] labels={"-0.25","RESET","+0.25"};
++                int[] actions={11,13,12};
++                for(int i=0;i<3;i++){
++                    int bx=right+11+i*(bw+5);
++                    rr(g,bx,cy,bw,24,5,i==1?0xFF744B7F:0xFF342641);
++                    txt(g,labels[i],bx+5,cy+8,0xFFFCE2F1);
++                    hudHit(bx,cy,bw,24,actions[i],hudSelected,hudNumber(hudSelected,"Timing offset (ms)"));
++                }
++            }
++            int centreY=bottom-55;
++            rr(g,right+10,centreY,settingsW-20,23,5,0xFF513361);
++            txt(g,"CENTRE WIDGET",right+18,centreY+8,0xFFF8DDED);
++            hudHit(right+10,centreY,settingsW-20,23,5,hudSelected,null);
++            txt(g,"DRAG TO MOVE • X/Y",right+12,bottom-23,0xFFAC97B6);
++        }
++        // A thin outline identifies the selected widget without adding animation or glow.
++        if(hudSelected!=null&&hudSelected.enabled) {
+             int bx=hudWidgetX(hudSelected),by=hudWidgetY(hudSelected);
+             if(bx>=0&&by>=0) {
+                 int ww=hudWidgetW(hudSelected),hh=hudWidgetH(hudSelected);
+-                fill(g,bx,by,bx+ww,by+1,0xFFFFA9DD);
+-                fill(g,bx,by+hh-1,bx+ww,by+hh,0xFFFFA9DD);
+-                fill(g,bx,by,bx+1,by+hh,0xFFFFA9DD);
+-                fill(g,bx+ww-1,by,bx+ww,by+hh,0xFFFFA9DD);
++                fill(g,bx,by,bx+ww,by+1,0xFFD99BCF);
++                fill(g,bx,by+hh-1,bx+ww,by+hh,0xFFD99BCF);
++                fill(g,bx,by,bx+1,by+hh,0xFFD99BCF);
++                fill(g,bx+ww-1,by,bx+ww,by+hh,0xFFD99BCF);
+             }
+         }
+     }
+     // Informational only. Macro executors are NOT installed by this guide.
+     private void macroGuideDraw(GuiGraphicsExtractor g) {
+         macroGuideHits.clear();
+-        g.fill(0, 0, width, height, 0xD6090810);
+-        int margin = Math.max(12, Math.min(32, width / 28));
+-        int boxX = margin, boxY = margin;
+-        int boxW = Math.max(240, width - margin * 2), boxH = Math.max(200, height - margin * 2);
+-        rr(g, boxX, boxY, boxW, boxH, 10, 0xF713111F);
+-        fill(g, boxX+16, boxY+52, boxX+boxW-16, boxY+54, 0xFF79547E);
+-        txtS(g, "DRAINER  /  MACRO GUIDE", boxX+19, boxY+16, 0xFFFFDEF2);
+-        txt(g, "Reference library - not installed automation", boxX+20, boxY+36, 0xFFB6A7C1);
+-        int xClose=boxX+boxW-90;
+-        rr(g, xClose, boxY+14, 70, 23, 5, 0xFF46324E);
+-        txt(g, "CLOSE", xClose+17, boxY+22, 0xFFEBD9F0);
+-        macroGuideHits.add(new int[]{xClose, boxY+14, 70, 23, -1});
+-
+-        var entries = com.lovenote.module.MacroGuideCatalog.ALL;
+-        int paneX=boxX+18, paneY=boxY+70, paneW=Math.max(170, Math.min(240, boxW/3));
+-        int paneH=Math.max(70, boxH-94), rowH=28;
+-        rr(g, paneX, paneY, paneW, paneH, 6, 0xFF201A2B);
+-        int rows=Math.max(1, (paneH-14)/rowH);
+-        macroGuideScroll=Math.max(0, Math.min(Math.max(0, entries.size()-rows), macroGuideScroll));
+-        g.enableScissor(paneX+2, paneY+4, paneX+paneW-2, paneY+paneH-4);
+-        for (int i=macroGuideScroll;i<entries.size() && i<macroGuideScroll+rows;i++) {
++        g.fill(0,0,width,height,0x97070611);
++        int boxW=Math.min(width-26,740), boxH=Math.min(height-26,448);
++        int boxX=(width-boxW)/2, boxY=(height-boxH)/2;
++        rr(g,boxX,boxY,boxW,boxH,10,0xF3100E1B);
++        rr(g,boxX+13,boxY+14,3,20,2,0xFFE5A5DB);
++        txtS(g,"DRAINER / MACRO LIBRARY",boxX+23,boxY+17,0xFFFFDDF1);
++        txt(g,"REFERENCE • MODULES REQUIRE SEPARATE INSTALLATION",boxX+23,boxY+36,0xFFAD9FBA);
++        fill(g,boxX+15,boxY+55,boxX+boxW-15,boxY+56,0xFF67436D);
++        int xClose=boxX+boxW-75;
++        rr(g,xClose,boxY+14,58,24,5,0xFF48334F);
++        txt(g,"CLOSE",xClose+10,boxY+22,0xFFF4DCEC);
++        macroGuideHits.add(new int[]{xClose,boxY+14,58,24,-1});
++        var entries=com.lovenote.module.MacroGuideCatalog.ALL;
++        if(entries.isEmpty())return;
++        int paneX=boxX+16,paneY=boxY+68,paneW=Math.max(122,Math.min(222,boxW/3));
++        int paneH=Math.max(90,boxH-87),rowH=24;
++        rr(g,paneX,paneY,paneW,paneH,6,0xFF1C1728);
++        int rows=Math.max(1,(paneH-12)/rowH);
++        macroGuideScroll=Math.max(0,Math.min(Math.max(0,entries.size()-rows),macroGuideScroll));
++        g.enableScissor(paneX+2,paneY+4,paneX+paneW-2,paneY+paneH-4);
++        for(int i=macroGuideScroll;i<entries.size()&&i<macroGuideScroll+rows;i++) {
+             var entry=entries.get(i);
+-            int yy=paneY+8+(i-macroGuideScroll)*rowH;
+-            if (i==macroGuideSelected) rr(g,paneX+6,yy-2,paneW-12,rowH-2,5,0xFF4D335F);
++            int yy=paneY+7+(i-macroGuideScroll)*rowH;
++            if(i==macroGuideSelected)rr(g,paneX+5,yy-2,paneW-10,rowH-2,4,0xFF483150);
+             String nm=entry.name();
+-            while(nm.length()>6 && font.width(nm)>paneW-28) nm=nm.substring(0,nm.length()-2);
+-            if (!nm.equals(entry.name())) nm+="...";
+-            txt(g,nm,paneX+13,yy+5,i==macroGuideSelected?0xFFFFD9EE:0xFFB9AABC);
+-            macroGuideHits.add(new int[]{paneX+6,yy-2,paneW-12,rowH-2,i});
++            while(nm.length()>5&&font.width(nm)>paneW-24)nm=nm.substring(0,nm.length()-2);
++            if(!nm.equals(entry.name()))nm+="…";
++            txt(g,nm,paneX+11,yy+5,i==macroGuideSelected?0xFFFFD9EB:0xFFAFA1B8);
++            macroGuideHits.add(new int[]{paneX+5,yy-2,paneW-10,rowH-2,i});
+         }
+         g.disableScissor();
+-        int detailsX=paneX+paneW+16, detailsW=Math.max(90, boxX+boxW-20-detailsX);
+-        rr(g, detailsX,paneY,detailsW,paneH,6,0xFF201A2B);
+-        var selected=entries.get(Math.max(0,Math.min(entries.size()-1,macroGuideSelected)));
+-        int tx=detailsX+14, maxWidth=detailsW-28;
+-        txtS(g,selected.name(),tx,paneY+15,0xFFFFCBE8);
+-        txt(g,selected.group().toUpperCase(java.util.Locale.ROOT),tx,paneY+37,0xFFC28FE1);
+-        fill(g,tx,paneY+58,tx+Math.max(1,maxWidth),paneY+59,0xFF634472);
+-        int yy=paneY+72;
+-        yy=macroTextBlock(g,"WHAT",selected.what(),tx,yy,maxWidth);
+-        yy=macroTextBlock(g,"HOW",selected.how(),tx,yy,maxWidth);
+-        yy=macroTextBlock(g,"HOW TO USE",selected.usage(),tx,yy,maxWidth);
+-        if(yy+28<paneY+paneH) txt(g,"STATUS: NEEDS PORT / TESTING",tx,paneY+paneH-24,0xFFE3B980);
++        int dx=paneX+paneW+12,dw=boxX+boxW-16-dx;
++        rr(g,dx,paneY,dw,paneH,6,0xFF1C1728);
++        var entry=entries.get(Math.max(0,Math.min(entries.size()-1,macroGuideSelected)));
++        int tx=dx+13,maxWidth=Math.max(40,dw-26);
++        g.enableScissor(dx+5,paneY+5,dx+dw-5,paneY+paneH-6);
++        String name=entry.name();
++        while(name.length()>5&&font.width(name)>maxWidth)name=name.substring(0,name.length()-2);
++        txtS(g,name,tx,paneY+15,0xFFFFCEE9);
++        txt(g,entry.group().toUpperCase(java.util.Locale.ROOT),tx,paneY+36,0xFFC39ADB);
++        fill(g,tx,paneY+54,tx+maxWidth,paneY+55,0xFF64436E);
++        int yy=paneY+65;
++        yy=macroTextBlock(g,"WHAT IT DOES",entry.what(),tx,yy,maxWidth);
++        yy=macroTextBlock(g,"HOW IT WORKS",entry.how(),tx,yy,maxWidth);
++        yy=macroTextBlock(g,"HOW TO USE",entry.usage(),tx,yy,maxWidth);
++        g.disableScissor();
+     }
+ 
+     private int macroTextBlock(GuiGraphicsExtractor g,String label,String value,int x,int y,int maxWidth) {
+@@ -336,6 +381,9 @@
+                 case 8 -> com.lovenote.spotify.SpotifyManager.I.togglePlay();
+                 case 9 -> com.lovenote.spotify.SpotifyManager.I.next();
+                 case 10 -> {if(hit.setting instanceof com.lovenote.setting.ModeSetting ms && ms.modes.length>0)ms.setIndex((ms.index()+1)%ms.modes.length);}
++                case 11 -> {if(hit.setting instanceof com.lovenote.setting.NumberSetting n)n.set(Math.max(n.min,n.get()-250));}
++                case 12 -> {if(hit.setting instanceof com.lovenote.setting.NumberSetting n)n.set(Math.min(n.max,n.get()+250));}
++                case 13 -> {if(hit.setting instanceof com.lovenote.setting.NumberSetting n)n.set(0);}
+             }
+             return true;
+         }
+@@ -1745,7 +1793,7 @@
+             return true;
+         }
+         if(drainerHudEditor) {
+-            if(mx >= width-248 && hudSelected!=null)hudSettingsScroll=Math.max(0,Math.min(hudSelected.settings.size()-1,hudSettingsScroll-(int)Math.signum(amount)));
++            if(mx >= width-Math.max(164,Math.min(216,width/4))-12 && hudSelected!=null)hudSettingsScroll=Math.max(0,Math.min(hudSelected.settings.size()-1,hudSettingsScroll-(int)Math.signum(amount)));
+             else hudListScroll=Math.max(0,hudListScroll-(int)Math.signum(amount)*2);
+             return true;
+         }

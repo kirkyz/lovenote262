@@ -1,6 +1,7 @@
 package com.lovenote.module;
 
 import com.lovenote.module.impl.*;
+import com.lovenote.module.impl.ported.DrainerServerMacros.*;
 
 import com.lovenote.module.impl.GroundFog;
 import com.lovenote.module.impl.SkyShader;
@@ -71,7 +72,7 @@ public class ModuleManager {
 		register(new Criticals());
 		register(new WTap());
 		register(new AutoClicker());
-		register(new AutoTotem());
+		// V10.1: removed redundant inert placeholder; use the V10 shared functional module.
 		register(new AutoArmor());
 		register(new AutoCrystal());
 		register(new CrystalTap());
@@ -84,18 +85,18 @@ public class ModuleManager {
 		register(new AutoTrap());
 		register(new AutoCity());
 		register(new OldCombat());
-		register(new AutoFarm());
+		// V10: hide the inert AutoFarm placeholder; DonutAutoFarm handles targeted crops.
 		register(new AutoFish());
 		register(new CommandMacro());
 		register(new ServerInfo());
 		register(new StaffDetector());
 		register(new AntiBot());
 		register(new AutoPotion());
-		register(new AutoGApple());
+		// V10.1: removed redundant inert placeholder; use the V10 shared functional module.
 		register(new AutoTool());
-		register(new AutoLog());
+		// V10: hide the inert AutoLog placeholder; DonutAutoLog is implemented.
 		register(new AutoRespawn());
-		register(new Sprint());
+		// V9 deduplicated: Sprint (placeholder; AutoSprint and ToggleSprint are implemented).
 		register(new Speed());
 		register(new Flight());
 		register(new Bhop());
@@ -169,8 +170,8 @@ public class ModuleManager {
 		register(new SmoothCamera());
 		register(new FovOverride());
 		register(new NoViewBob());
-		register(new AutoBuy());
-		register(new ChestStealer());
+		// V10: replaced by native DonutAutoBuy implementation.
+		// V10.1: removed redundant inert placeholder; use the V10 shared functional module.
 		register(new SpawnerESP());
 		register(new LootBeam());
 		register(new AutoReconnect());
@@ -186,7 +187,7 @@ public class ModuleManager {
 		register(new DeathCoords());
 		register(new AutoGG());
 		register(new ChestTracker());
-		register(new InterfaceModule());
+		// V9 deduplicated: InterfaceModule (placeholder; Interface is the real settings module).
 		register(new Watermark());
 		register(new DrainerInfoBar());
 		register(new SpotifyHud());
@@ -203,11 +204,11 @@ public class ModuleManager {
 		register(new Radar());
 		register(new ModuleList());
 		register(new HitLog());
-		register(new InfoHud());
-		register(new PotionList());
+		// V9 deduplicated: InfoHud (FPS/server text already available through other implemented HUD widgets).
+		// V9 deduplicated: PotionList (PotionsWidget is the configurable positioned version).
 		register(new ArmorHud());
 		register(new CpsHud());
-		register(new CoordsHud());
+		// V9 deduplicated: CoordsHud (equivalent position widget; Coordinates remains).
 		register(new PingHud());
 		register(new TabList());
 		register(new ComboCounter());
@@ -217,6 +218,28 @@ public class ModuleManager {
 		register(new AutoEat());
 		register(new MiddleClick());
 		register(new ChatSuffix());
+        // V10 native ports (no additional Meteor addon entrypoint).
+        register(new DonutAutoBuy());
+        register(new DonutAutoShard());
+        register(new DonutAutoWarp());
+        register(new DonutAutoRekit());
+        register(new DonutAutoLog());
+        register(new DonutPingComp());
+        register(new DonutSpawnerDetect());
+        register(new DonutAutoFarm());
+        register(new DonutChestTransfer());
+        register(new DonutAutoCraft());
+        register(new DonutLoadout());
+        register(new HypixelScaffold());
+        register(new HypixelNoSlow());
+        register(new HypixelAntiVoid());
+        register(new EmergencyGap());
+        register(new OffhandTotem());
+        register(new ServerMobAura());
+        register(new MacroRecorder());
+        register(new MacroLibrary());
+        register(new MacroStatusHud());
+
 
 	}
 
@@ -262,7 +285,7 @@ public class ModuleManager {
 	}
 
 	public void hud(GuiGraphicsExtractor ctx, float tickDelta) {
-		for (Module m : modules) if (m.enabled) m.onHud(ctx, tickDelta);
+		for (Module m : modules) if (m.enabled) com.lovenote.util.HudScale.draw(m,ctx,tickDelta);
 	}
 
 	public void attack(Entity target) {

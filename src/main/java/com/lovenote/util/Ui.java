@@ -155,40 +155,25 @@ public final class Ui {
 		}
 	}
 
-	public static void panel(GuiGraphicsExtractor g, int x, int y, int w, int h) {
-		int r = pillStyle ? Math.max(2, h / 2) : radius;
-		if (shadowOn && shadowSize > 0) {
-			for (int i = shadowSize; i >= 1; i--) {
-				int a = (int) (shadowAlpha * (1f - i / (float) (shadowSize + 1)));
-				if (a < 2) continue;
-				rrect(g, x - i, y - i + 1, w + i * 2, h + i * 2, r + i, Colors.alpha(0x000000, a));
-			}
-		}
-		if (glowOn) glowRect(g, x, y, w, h, r, Colors.C3, glowAlpha);
-		if (gradientOn) rrectGrad(g, x, y, w, h, r, bg, bg2);
-		else rrect(g, x, y, w, h, r, bg);
-		if (glass) rrect(g, x + 1, y + 1, w - 2, Math.max(1, h / 3), r, Colors.alpha(0xFFFFFF, 14));
-		for (int i = 0; i < borderWidth; i++)
-			rrect(g, x - i, y - i, w + i * 2, h + i * 2, r + i, border);
-	}
+	    /** Shared premium HUD chrome, intentionally 3 rounded fills plus 1 lightweight sheen. */
+    private static void neonChrome(GuiGraphicsExtractor g,int x,int y,int w,int h,boolean isPill){
+        if(w<=0||h<=0)return;
+        int r=isPill?Math.max(5,h/2):Math.max(7,Math.min(14,radius));
+        int glow=Colors.alpha(accent2,Math.max(22,Math.min(115,glowAlpha)));
+        if(glowOn)rrect(g,x-2,y-2,w+4,h+4,r+2,Colors.alpha(accent2,16));
+        rrect(g,x-1,y-1,w+2,h+2,r+1,glow);
+        rrect(g,x,y,w,h,r,Colors.alpha(0x0D0B19,Math.max(155,(bg>>>24)&255)));
+        if(glass && h>13)rrect(g,x+3,y+2,w-6,Math.max(2,h/5),Math.max(2,r-2),0x1BFFFFFF);
+        if(accentBorder && w>15)rect(g,x+Math.max(6,r/2),y+h-2,Math.max(2,w-Math.max(6,r/2)*2),1,Colors.alpha(accent1,94));
+    }
+    public static void panel(GuiGraphicsExtractor g, int x, int y, int w, int h) {
+        neonChrome(g,x,y,w,h,false);
+    }
+    public static void pill(GuiGraphicsExtractor g, int x, int y, int w, int h) {
+        neonChrome(g,x,y,w,h,true);
+    }
 
-	public static void pill(GuiGraphicsExtractor g, int x, int y, int w, int h) {
-		int r = Math.max(2, h / 2);
-		if (shadowOn && shadowSize > 0) {
-			for (int i = shadowSize; i >= 1; i--) {
-				int a = (int) (shadowAlpha * (1f - i / (float) (shadowSize + 1)));
-				if (a < 2) continue;
-				rrect(g, x - i, y - i + 1, w + i * 2, h + i * 2, r + i, Colors.alpha(0x000000, a));
-			}
-		}
-		if (glowOn) glowRect(g, x, y, w, h, r, Colors.C3, glowAlpha);
-		rrectGrad(g, x, y, w, h, r, bg, bg2);
-		rrect(g, x + 1, y + 1, w - 2, Math.max(1, h / 3), r, Colors.alpha(0xFFFFFF, 14));
-		for (int i = 0; i < borderWidth; i++)
-			rrect(g, x - i, y - i, w + i * 2, h + i * 2, r + i, border);
-	}
-
-	public static void bar(GuiGraphicsExtractor g, int x, int y, int w, int h) {
+public static void bar(GuiGraphicsExtractor g, int x, int y, int w, int h) {
 		if (w <= 0) return;
 		gradH(g, x, y, w, h, Colors.C1, Colors.C3);
 	}

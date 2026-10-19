@@ -23,6 +23,10 @@ public final class SpotifyManager {
     public volatile String title = "", artist = "", album = "", status = "Starting bridge";
     public volatile boolean connected, hasTrack, playing;
     public volatile long progressMs, durationMs, progressStamp;
+    private volatile long progressNanos;
+    private volatile String clockTrack = "";
+    private volatile int backwardSamples;
+    private volatile boolean permitSeek;
     public volatile Identifier artTexture;
     private volatile String lastCover = "";
     private volatile boolean started;
@@ -42,9 +46,9 @@ public final class SpotifyManager {
         started = true;
         Thread t = new Thread(() -> {
             while (!Thread.currentThread().isInterrupted()) {
-                try { poll(); Thread.sleep(2500); }
+                try { poll(); Thread.sleep(850); }
                 catch (InterruptedException e) { Thread.currentThread().interrupt(); }
-                catch (Exception e) { connected = false; hasTrack = false; status = "Bridge error: " + e.getMessage();
+                catch (Exception e) { connected = false; hasTrack = false; playing = false; status = "Bridge error: " + e.getMessage();
                     try { Thread.sleep(2500); } catch (InterruptedException x) { Thread.currentThread().interrupt(); } }
             }
         }, "Drainer-Spotify-Poll");
@@ -79,11 +83,28 @@ public final class SpotifyManager {
         if (!o.has("found") || !o.get("found").getAsBoolean()) {
             hasTrack = false; status = "Open Spotify and play a track"; return;
         }
-        title = str(o, "title"); artist = str(o, "artist"); album = str(o, "album");
-        playing = o.has("playing") && o.get("playing").getAsBoolean();
-        progressMs = o.has("progressMs") ? o.get("progressMs").getAsLong() : 0;
-        durationMs = o.has("durationMs") ? o.get("durationMs").getAsLong() : 0;
-        progressStamp = System.currentTimeMillis();
+        String freshTitle=str(o,"title"),freshArtist=str(o,"artist");
+        boolean freshPlaying=o.has("playing") && o.get("playing").getAsBoolean();
+        long reported=o.has("progressMs") ? o.get("progressMs").getAsLong() : 0;
+        long freshDuration=o.has("durationMs") ? o.get("durationMs").getAsLong() : 0;
+        String identity=freshTitle+"|"+freshArtist+"|"+freshDuration;
+        long nowNanos=System.nanoTime();
+        long expected=progress();
+        boolean changed=!identity.equals(clockTrack);
+        // MediaSession bridge values can lag the real clock by one or more polls.
+        // Reject small backward reports unless seeking or changing tracks.
+        if(!changed && !permitSeek && freshPlaying && playing && reported+650<expected) {
+            if(++backwardSamples<3)reported=expected;
+            else backwardSamples=0; // confirmed backward seek from another player/window
+        } else backwardSamples=0;
+        clockTrack=identity;
+        permitSeek=false;
+        title=freshTitle;artist=freshArtist;album=str(o,"album");
+        playing=freshPlaying;
+        progressMs=Math.max(0,reported);
+        durationMs=freshDuration;
+        progressStamp=System.currentTimeMillis();
+        progressNanos=nowNanos;
         hasTrack = !title.isBlank();
         status = hasTrack ? "Connected" : "No track available";
         String cover = str(o, "cover");
@@ -106,7 +127,9 @@ public final class SpotifyManager {
         }
     }
     public long progress() {
-        long p = progressMs + (playing ? Math.max(0, System.currentTimeMillis() - progressStamp) : 0);
+        long sinceMs = Math.max(0L, (System.nanoTime() - progressNanos) / 1_000_000L);
+        // Use the last bridge position as an anchor; never advance while paused.
+        long p = progressMs + (playing ? Math.min(1500L, sinceMs) : 0);
         return Math.max(0, durationMs > 0 ? Math.min(durationMs, p) : p);
     }
     private void command(String... args) {
@@ -117,5 +140,5 @@ public final class SpotifyManager {
     public void togglePlay() { command("toggle"); }
     public void next() { command("next"); }
     public void previous() { command("previous"); }
-    public void seek(long ms) { command("seek", Long.toString(ms)); }
+    public void seek(long ms) { permitSeek=true; progressMs=Math.max(0,ms);progressNanos=System.nanoTime();command("seek", Long.toString(ms)); }
 }

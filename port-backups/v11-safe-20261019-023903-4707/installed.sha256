@@ -1,0 +1,6 @@
+a8ea69ab9d515d5fc0556719b5f194fe8e323fed1cf55d2f0fa0aab0b0fbc0ec *src/main/java/com/lovenote/module/ModuleManager.java
+d96afefd3ddda11c866ac6b168325bea4c65034fad0f8d146ac21455ecba959b *src/main/java/com/lovenote/module/impl/ported/DrainerServerMacros.java
+32df9f4a75b0fcaa6baeaf1fa5fdfd861c1834cba3543482d448bfa1bea40e7f *src/main/java/com/lovenote/macro/MacroTape.java
+4c2333b2f60847fbb3e5ff5186e1d20c5f6f0260fc19519a14d941c9f47477dd *src/main/java/com/lovenote/macro/MacroPlayback.java
+485c8a6fedd6e850ec8814fc027d00b0ad5f145a12e95857d1f4faa1f9bb75e3 *src/main/java/com/lovenote/module/impl/MacroLibrary.java
+baadbf57307dcfc812d233a51782c7a1778879f7ee0b3a900b1485b3b6a4dbd4 *src/main/java/com/lovenote/module/impl/MacroStatusHud.java

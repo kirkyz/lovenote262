@@ -56,6 +56,8 @@ public final class LovenoteConfig {
                                 if (appearance.has("headerLine")) LovenoteMenuConfig.headerLine = appearance.get("headerLine").getAsBoolean();
                         }
                         LovenoteMenuConfig.apply();
+                        com.lovenote.util.HudScale.load(root.has("hudScales") && root.get("hudScales").isJsonObject()
+                                ? root.getAsJsonObject("hudScales") : null);
                         JsonObject mods = root.has("modules") ? root.getAsJsonObject("modules") : new JsonObject();
 
                         for (Module m : Lovenote.modules.all()) {
@@ -151,6 +153,7 @@ public final class LovenoteConfig {
                         mods.add(m.name, o);
                 }
                 root.add("modules", mods);
+                root.add("hudScales", com.lovenote.util.HudScale.save());
                 JsonObject theme = new JsonObject();
                 theme.addProperty("accentIndex", LovenoteMenuConfig.accentIndex);
                 theme.addProperty("customPrimary", LovenoteMenuConfig.customPrimary);

@@ -1,0 +1,6 @@
+src/main/java/com/lovenote/module/ModuleManager.java
+src/main/java/com/lovenote/module/impl/ported/DrainerServerMacros.java
+src/main/java/com/lovenote/macro/MacroTape.java
+src/main/java/com/lovenote/macro/MacroPlayback.java
+src/main/java/com/lovenote/module/impl/MacroLibrary.java
+src/main/java/com/lovenote/module/impl/MacroStatusHud.java
