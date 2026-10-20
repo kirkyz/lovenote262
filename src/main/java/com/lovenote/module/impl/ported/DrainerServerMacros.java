@@ -197,15 +197,95 @@ public final class DrainerServerMacros {
             }
         }
     }
+    /**
+     * Supported-block bridging helper. Uses the existing 26.2 Meteor inventory
+     * synchronisation and placement geometry rather than manually changing slots.
+     * Requests normal block placement; it does not bypass server checks.
+     */
     public static final class HypixelScaffold extends Module {
-        private final NumberSetting interval=add(new NumberSetting("Interval (ticks)",5,2,40,1));
+        private final NumberSetting interval = add(new NumberSetting("Interval (ticks)", 2, 1, 20, 1));
+        private final ModeSetting placement = add(new ModeSetting("Placement", "Ahead", "Ahead", "Underfoot"));
+        private final NumberSetting lookAhead = add(new NumberSetting("Look ahead (blocks)", 0.65, 0, 1.5, 0.05));
+        private final BoolSetting autoSwitch = add(new BoolSetting("Auto-switch blocks", true));
+        private final BoolSetting rotate = add(new BoolSetting("Rotate to placement", true));
+        private final BoolSetting onlyMoving = add(new BoolSetting("Only while moving", false));
+        private final BoolSetting holdUse = add(new BoolSetting("Require use key", false));
+        private final BoolSetting debugHud = add(new BoolSetting("Show status HUD", false));
         private int timer;
-        public HypixelScaffold(){super("HypixelScaffold",Category.HYPIXEL);alsoIn.add(Category.RAGE);describe("Places a hotbar block below your feet if an adjacent support block exists.");}
-        @Override public void onTick(){
-            if(mc.player==null||mc.level==null||mc.gameMode==null||mc.gui.screen()!=null)return;
-            if(--timer>0)return;timer=interval.getI();
-            BlockPos pos=mc.player.blockPosition().below();
-            BlockUtil.placeAnyBlock(pos);
+        private String status = "Ready";
+
+        public HypixelScaffold() {
+            super("HypixelScaffold", Category.HYPIXEL);
+            alsoIn.add(Category.RAGE);
+            describe("Bridging helper using supported 26.2 placement and synced hotbar; requires ordinary server-permitted placements.");
+        }
+
+        @Override public void onEnable() { timer = 0; status = "Ready"; }
+        @Override public void onDisable() { timer = 0; status = "Ready"; }
+
+        private static boolean solidHotbarBlock(ItemStack stack, net.minecraft.client.multiplayer.ClientLevel level, BlockPos pos) {
+            if (stack.isEmpty() || !(stack.getItem() instanceof net.minecraft.world.item.BlockItem item)) return false;
+            net.minecraft.world.level.block.Block block = item.getBlock();
+            if (block instanceof net.minecraft.world.level.block.FallingBlock) return false;
+            return net.minecraft.world.level.block.Block.isShapeFullBlock(
+                block.defaultBlockState().getCollisionShape(level, pos));
+        }
+
+        @Override public void onTick() {
+            if (mc.player == null || mc.level == null || mc.gameMode == null || mc.gui.screen() != null) return;
+            var velocity = mc.player.getDeltaMovement();
+            if (onlyMoving.get() && velocity.x * velocity.x + velocity.z * velocity.z < 0.0005) {
+                status = "Not moving";
+                return;
+            }
+            if (holdUse.get() && !mc.options.keyUse.isDown()) { status = "Hold use key"; return; }
+            if (timer-- > 0) return;
+            timer = interval.getI() - 1;
+
+            BlockPos feet = mc.player.blockPosition().below();
+            var blocks = meteordevelopment.meteorclient.utils.player.InvUtils.findInHotbar(
+                s -> solidHotbarBlock(s, mc.level, feet));
+            if (!blocks.found()) { status = "No solid blocks in hotbar"; return; }
+            if (!autoSwitch.get() && blocks.getHand() == null) { status = "Select a block"; return; }
+
+            double leadX = placement.is("Ahead") ? Math.max(-1.5, Math.min(1.5, velocity.x * 3.0)) * lookAhead.get() : 0;
+            double leadZ = placement.is("Ahead") ? Math.max(-1.5, Math.min(1.5, velocity.z * 3.0)) * lookAhead.get() : 0;
+            BlockPos wanted = BlockPos.containing(mc.player.getX() + leadX,
+                    mc.player.getY() - 0.65, mc.player.getZ() + leadZ);
+            int y = feet.getY();
+
+            // Prefer the path ahead but recover onto a supported block near the feet.
+            // Never fabricate a hit face or send air-place attempts.
+            java.util.ArrayList<BlockPos> candidates = new java.util.ArrayList<>();
+            for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) {
+                BlockPos candidate = new BlockPos(wanted.getX() + dx, y, wanted.getZ() + dz);
+                if (candidate.distSqr(feet) > 5.0) continue;
+                candidates.add(candidate);
+            }
+            candidates.sort(java.util.Comparator.comparingDouble(p -> p.distSqr(wanted)));
+
+            for (BlockPos candidate : candidates) {
+                if (!mc.level.getChunkSource().hasChunk(candidate.getX() >> 4, candidate.getZ() >> 4)) continue;
+                ItemStack selectedStack = blocks.isOffhand() ? mc.player.getOffhandItem()
+                    : mc.player.getInventory().getItem(blocks.slot());
+                var blockItem = (net.minecraft.world.item.BlockItem) selectedStack.getItem();
+                if (!meteordevelopment.meteorclient.utils.world.BlockUtils.canPlaceBlock(candidate, true, blockItem.getBlock())) continue;
+                var side = meteordevelopment.meteorclient.utils.world.BlockUtils.getPlaceSide(candidate);
+                if (side == null) continue;
+                BlockPos neighbor = candidate.relative(side);
+                if (mc.player.getEyePosition().distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(neighbor)) > 25.0) continue;
+                boolean sent = meteordevelopment.meteorclient.utils.world.BlockUtils.place(
+                    candidate, blocks, rotate.get(), 50, true, true);
+                if (sent) { status = "Placement requested"; return; }
+            }
+            status = "No supported block in reach";
+        }
+
+        @Override public void onHud(GuiGraphicsExtractor g, float delta) {
+            if (!debugHud.get() || mc.player == null) return;
+            String s = "Scaffold: " + status;
+            Ui.pill(g, 8, 112, Ui.textW(s) + 14, 20);
+            Ui.text(g, s, 15, 118, 0xFFCEC3DD);
         }
     }
     public static final class HypixelNoSlow extends Module {
@@ -298,6 +378,8 @@ public final class DrainerServerMacros {
         private final ModeSetting slot=add(new ModeSetting("Recording slot","Slot 1","Slot 1","Slot 2","Slot 3","Slot 4","Slot 5"));
         private final NumberSetting maxSeconds=add(new NumberSetting("Max seconds",45,5,120,5));
         private final NumberSetting stopHealth=add(new NumberSetting("Stop below health",6,0,20,1));
+        private final BoolSetting recordLook=add(new BoolSetting("Record camera direction",true));
+        private final BoolSetting recordMouse=add(new BoolSetting("Record attack/use",true));
         private final com.lovenote.macro.MacroTape[] tapes = {
             new com.lovenote.macro.MacroTape(),new com.lovenote.macro.MacroTape(),
             new com.lovenote.macro.MacroTape(),new com.lovenote.macro.MacroTape(),
@@ -307,20 +389,50 @@ public final class DrainerServerMacros {
         private net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> startedDimension;
         public MacroRecorder(){super("MacroRecorder",Category.MISC);
             alsoIn.add(Category.HYPIXEL); alsoIn.add(Category.DONUT);
-            describe("Record and replay up to five movement clips. Stops on GUI, death, dimension change, low health or disable.");}
+            describe("Record/replay input in permitted worlds; disabled on Hypixel. Stops on menus, death, dimension changes and low health.");}
         public boolean isBusy(){return wasRecording || wasPlaying || recording.get() || playback.get();}
         /** Used by native MacroLibrary. Overwrites the selected slot, never executes automatically. */
-        public void loadTemplate(int[] frames){
+        public void loadTemplate(int[] frames){loadTemplate(frames,null,null);}
+        public void loadTemplate(int[] frames,float[] yaw,float[] pitch){
             if(isBusy())return;
-            tapes[slot.index()].setFrom(frames);
+            tapes[slot.index()].setFrom(frames,yaw,pitch);
             playIndex=0;
         }
+        /** Server-side rules: do not record or replay gameplay on Hypixel. */
+        private boolean onHypixel(){
+            if(mc.getCurrentServer()==null)return false;
+            String server=mc.getCurrentServer().ip.toLowerCase(java.util.Locale.ROOT);
+            return server.equals("hypixel.net") || server.startsWith("hypixel.net:") ||
+                server.endsWith(".hypixel.net") || server.matches(".+\\.hypixel\\.net:\\d+");
+        }
+        /** Called by the Library: arm recording/playback before dismissing the GUI. */
+        public boolean queueRecording(){
+            if(mc.player==null || mc.level==null || isBusy() || onHypixel())return false;
+            if(!enabled)setEnabled(true);
+            stopAll();recording.set(true);return true;
+        }
+        public boolean queuePlayback(){
+            if(mc.player==null || mc.level==null || isBusy() || tape().isEmpty() || onHypixel())return false;
+            if(!enabled)setEnabled(true);
+            stopAll();playback.set(true);return true;
+        }
+        public void halt(){stopAll();}
         /** An independent snapshot; library saves never modify the live recording. */
         public int[] selectedFrames() {
             com.lovenote.macro.MacroTape current = tape();
             int[] values = new int[current.size()];
             for (int i = 0; i < values.length; i++) values[i] = current.get(i);
             return values;
+        }
+        public float[] selectedYaw(){
+            float[] out=new float[tape().size()];
+            for(int i=0;i<out.length;i++)out[i]=tape().getYaw(i);
+            return out;
+        }
+        public float[] selectedPitch(){
+            float[] out=new float[tape().size()];
+            for(int i=0;i<out.length;i++)out[i]=tape().getPitch(i);
+            return out;
         }
         public String selectedSlot() { return slot.get(); }
         private com.lovenote.macro.MacroTape tape(){return tapes[slot.index()];}
@@ -334,6 +446,7 @@ public final class DrainerServerMacros {
         }
         @Override public void onEnable(){stopAll();}
         @Override public void onTick(){
+            if(onHypixel()){stopAll();return;}
             if(clear.get()){
                 stopAll();tape().clear();clear.set(false);return;
             }
@@ -352,8 +465,11 @@ public final class DrainerServerMacros {
                 }
                 int mask=(mc.options.keyUp.isDown()?1:0)|(mc.options.keyDown.isDown()?2:0)
                     |(mc.options.keyLeft.isDown()?4:0)|(mc.options.keyRight.isDown()?8:0)
-                    |(mc.options.keyJump.isDown()?16:0)|(mc.options.keyShift.isDown()?32:0);
-                tape().append(mask);
+                    |(mc.options.keyJump.isDown()?16:0)|(mc.options.keyShift.isDown()?32:0)
+                    |(recordMouse.get()&&mc.options.keyAttack.isDown()?64:0)
+                    |(recordMouse.get()&&mc.options.keyUse.isDown()?128:0);
+                tape().append(mask,recordLook.get()?mc.player.getYRot():Float.NaN,
+                    recordLook.get()?mc.player.getXRot():Float.NaN);
                 com.lovenote.macro.MacroPlayback.recordStatus(slot.get(),tape().size());
                 return;
             }
@@ -372,14 +488,19 @@ public final class DrainerServerMacros {
                 if(loop.get())playIndex=0;
                 else {stopReplay();return;}
             }
-            int mask=tape().get(playIndex++);
-            com.lovenote.macro.MacroPlayback.apply(mc,this,slot.get(),mask,playIndex,tape().size());
+            int i=playIndex++;
+            int mask=tape().get(i);
+            com.lovenote.macro.MacroPlayback.apply(mc,this,slot.get(),mask,playIndex,tape().size(),
+                tape().getYaw(i),tape().getPitch(i));
         }
         @Override public void onDisable(){stopAll();}
         @Override public void saveExtra(JsonObject o){
             com.google.gson.JsonArray arr=new com.google.gson.JsonArray();
             for(var tape:tapes)arr.add(tape.toJson());
             o.add("macroSlotsV11",arr);
+            com.google.gson.JsonArray angles=new com.google.gson.JsonArray();
+            for(var tape:tapes)angles.add(tape.rotationsToJson());
+            o.add("macroAnglesV15",angles);
         }
         @Override public void loadExtra(JsonObject o){
             stopAll();
@@ -387,6 +508,10 @@ public final class DrainerServerMacros {
             if(o.has("macroSlotsV11") && o.get("macroSlotsV11").isJsonArray()){
                 var a=o.getAsJsonArray("macroSlotsV11");
                 for(int i=0;i<Math.min(tapes.length,a.size());i++)tapes[i].fromJson(a.get(i));
+                if(o.has("macroAnglesV15") && o.get("macroAnglesV15").isJsonArray()){
+                    var angles=o.getAsJsonArray("macroAnglesV15");
+                    for(int i=0;i<Math.min(tapes.length,angles.size());i++)tapes[i].loadRotations(angles.get(i));
+                }
             } else if(o.has("macroSamples")){
                 // Migrate the existing V10.1 recording to Slot 1.
                 try{

@@ -16,6 +16,8 @@ import org.joml.Matrix4f;
 
 /** A slowly rotating sphere of stars linked into constellations around you. */
 public class StarSphere extends Module {
+	private final ModeSetting positionMode = add(new ModeSetting("Effect position", "World anchor", "World anchor", "Around player", "Camera follow"));
+    private final NumberSetting forwardDistance = add(new NumberSetting("Forward distance", 7.5, 3, 22, .5));
 	private final ModeSetting colour = add(new ModeSetting("Colour", "Theme", "Theme", "Rainbow", "Ice", "Gold", "White"));
 	private final NumberSetting stars = add(new NumberSetting("Stars", 110, 20, 300, 5));
 	private final NumberSetting radius = add(new NumberSetting("Radius", 3.4, 1.0, 12.0, 0.1));
@@ -82,18 +84,49 @@ public class StarSphere extends Module {
 		};
 	}
 
+    // World anchor is acquired once, not recomputed from the camera every frame.
+    // Changing world/server or toggling the module resets the anchor.
+    private boolean anchorReady;
+    private double anchorX, anchorY, anchorZ;
+    private net.minecraft.client.multiplayer.ClientLevel anchorLevel;
+    @Override public void onEnable() { anchorReady=false; anchorLevel=null; }
+    @Override public void onDisable() { anchorReady=false; anchorLevel=null; }
+    private void positionAt(double[] position, WorldRenderContext ctx) {
+        var cam=ctx.camera().position();
+        if (positionMode.is("Around player")) {
+            position[0]=mc.player.getX(); position[1]=mc.player.getY()+1.15; position[2]=mc.player.getZ();
+            return;
+        }
+        if (!anchorReady || anchorLevel != mc.level || positionMode.is("Camera follow")) {
+            double yaw=Math.toRadians(mc.player.getYRot());
+            double pitch=Math.toRadians(mc.player.getXRot());
+            double horizontal=Math.cos(pitch)*forwardDistance.get();
+            double ax=cam.x-Math.sin(yaw)*horizontal;
+            double ay=cam.y-Math.sin(pitch)*forwardDistance.get();
+            double az=cam.z+Math.cos(yaw)*horizontal;
+            if(positionMode.is("Camera follow")) {position[0]=ax;position[1]=ay;position[2]=az;return;}
+            anchorX=ax;anchorY=ay;anchorZ=az;
+            anchorLevel=mc.level; anchorReady=true;
+        }
+        position[0]=anchorX;position[1]=anchorY;position[2]=anchorZ;
+    }
+
 	@Override
 	public void onRender3D(WorldRenderContext ctx, PoseStack stack) {
 		if (mc.player == null) return;
 		Matrix4f mat = stack.last().pose();
 		var cam = ctx.camera().position();
-		double cx = mc.player.getX(), cy = mc.player.getY() + 1.0, cz = mc.player.getZ();
+        double[] pos=new double[3];
+        positionAt(pos,ctx);
+        double cx=pos[0],cy=pos[1],cz=pos[2];
 
-		int n = stars.getI();
+		// Size and constellation connectivity must be initialised before drawing.
+		// Keep the optimiser budget from the last working renderer.
+		int n = VisualOptimizer.budget(stars.getI(), 20);
 		float rad = radius.getF();
 		build(n, linkDist.getF());
 
-		float t = System.currentTimeMillis() / 1000f;
+		float t = System.nanoTime() / 1_000_000_000f;
 		double ang = t * spin.getF();
 		double cs = Math.cos(ang), sn = Math.sin(ang);
 		float wob = wobble.get() ? (float) Math.sin(t * 0.5) * 0.35f : 0f;

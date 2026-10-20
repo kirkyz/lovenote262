@@ -1,0 +1,299 @@
+[
+  {
+    "filename": "Garden_Wheat_96.schem",
+    "name": "96x96 irrigated Wheat Garden plot",
+    "dimensions": [
+      96,
+      4,
+      96
+    ],
+    "placed_blocks": 16668,
+    "blocks_by_type": {
+      "minecraft:farmland": 7452,
+      "minecraft:stone_bricks": 752,
+      "minecraft:water": 1012,
+      "minecraft:wheat": 7452
+    }
+  },
+  {
+    "filename": "Garden_Carrots_96.schem",
+    "name": "96x96 irrigated Carrots Garden plot",
+    "dimensions": [
+      96,
+      4,
+      96
+    ],
+    "placed_blocks": 16668,
+    "blocks_by_type": {
+      "minecraft:carrots": 7452,
+      "minecraft:farmland": 7452,
+      "minecraft:stone_bricks": 752,
+      "minecraft:water": 1012
+    }
+  },
+  {
+    "filename": "Garden_Potatoes_96.schem",
+    "name": "96x96 irrigated Potatoes Garden plot",
+    "dimensions": [
+      96,
+      4,
+      96
+    ],
+    "placed_blocks": 16668,
+    "blocks_by_type": {
+      "minecraft:farmland": 7452,
+      "minecraft:potatoes": 7452,
+      "minecraft:stone_bricks": 752,
+      "minecraft:water": 1012
+    }
+  },
+  {
+    "filename": "Garden_NetherWart_96.schem",
+    "name": "96x96 soul-sand Nether Wart Garden plot",
+    "dimensions": [
+      96,
+      4,
+      96
+    ],
+    "placed_blocks": 17680,
+    "blocks_by_type": {
+      "minecraft:nether_wart": 8464,
+      "minecraft:soul_sand": 8464,
+      "minecraft:stone_bricks": 752
+    }
+  },
+  {
+    "filename": "Garden_SugarCane_96.schem",
+    "name": "96x96 triple-height Sugar Cane Garden plot",
+    "dimensions": [
+      96,
+      4,
+      96
+    ],
+    "placed_blocks": 26328,
+    "blocks_by_type": {
+      "minecraft:sand": 5704,
+      "minecraft:stone_bricks": 660,
+      "minecraft:sugar_cane": 17112,
+      "minecraft:water": 2852
+    }
+  },
+  {
+    "filename": "Garden_Melon_96.schem",
+    "name": "96x96 guided Melon stem/fruit Garden plot",
+    "dimensions": [
+      96,
+      4,
+      96
+    ],
+    "placed_blocks": 13448,
+    "blocks_by_type": {
+      "minecraft:attached_melon_stem": 2116,
+      "minecraft:dirt": 2116,
+      "minecraft:farmland": 2116,
+      "minecraft:melon": 2116,
+      "minecraft:stone_bricks": 2776,
+      "minecraft:water": 2208
+    }
+  },
+  {
+    "filename": "Garden_Pumpkin_96.schem",
+    "name": "96x96 guided Pumpkin stem/fruit Garden plot",
+    "dimensions": [
+      96,
+      4,
+      96
+    ],
+    "placed_blocks": 13448,
+    "blocks_by_type": {
+      "minecraft:attached_pumpkin_stem": 2116,
+      "minecraft:dirt": 2116,
+      "minecraft:farmland": 2116,
+      "minecraft:pumpkin": 2116,
+      "minecraft:stone_bricks": 2776,
+      "minecraft:water": 2208
+    }
+  },
+  {
+    "filename": "Starter_MixedCrops_24.schem",
+    "name": "24x24 starter irrigated crop sampler (wheat/carrot/potato)",
+    "dimensions": [
+      24,
+      2,
+      24
+    ],
+    "placed_blocks": 896,
+    "blocks_by_type": {
+      "minecraft:carrots": 80,
+      "minecraft:farmland": 320,
+      "minecraft:potatoes": 80,
+      "minecraft:stone_bricks": 176,
+      "minecraft:water": 80,
+      "minecraft:wheat": 160
+    }
+  },
+  {
+    "filename": "Starter_Wheat_16.schem",
+    "name": "Starter wheat \u2014 irrigated 16x16",
+    "category": "Starter",
+    "dimensions": [
+      16,
+      2,
+      16
+    ],
+    "placed_blocks": 438,
+    "blocks_by_type": {
+      "minecraft:farmland": 182,
+      "minecraft:stone_bricks": 60,
+      "minecraft:water": 14,
+      "minecraft:wheat": 182
+    },
+    "note": "Growth states are a visual guide; crops must be planted and grown manually."
+  },
+  {
+    "filename": "Starter_Carrots_16.schem",
+    "name": "Starter carrots \u2014 irrigated 16x16",
+    "category": "Starter",
+    "dimensions": [
+      16,
+      2,
+      16
+    ],
+    "placed_blocks": 438,
+    "blocks_by_type": {
+      "minecraft:carrots": 182,
+      "minecraft:farmland": 182,
+      "minecraft:stone_bricks": 60,
+      "minecraft:water": 14
+    },
+    "note": "Designed for small first plots, not a guaranteed profit method."
+  },
+  {
+    "filename": "Starter_SugarCane_24.schem",
+    "name": "Starter sugar cane \u2014 24x24",
+    "category": "Starter",
+    "dimensions": [
+      24,
+      4,
+      24
+    ],
+    "placed_blocks": 1104,
+    "blocks_by_type": {
+      "minecraft:sand": 176,
+      "minecraft:stone_bricks": 246,
+      "minecraft:sugar_cane": 528,
+      "minecraft:water": 154
+    },
+    "note": "Keep cane bases intact when harvesting."
+  },
+  {
+    "filename": "Garden_Cocoa_96.schem",
+    "name": "Garden cocoa beans and jungle logs \u2014 96x96",
+    "category": "Garden",
+    "dimensions": [
+      96,
+      4,
+      96
+    ],
+    "placed_blocks": 22752,
+    "blocks_by_type": {
+      "minecraft:cocoa": 6768,
+      "minecraft:dirt": 2256,
+      "minecraft:jungle_log": 9024,
+      "minecraft:stone_bricks": 4704
+    },
+    "note": "Requires suitable lighting, growth and unlocked crop/plot rules."
+  },
+  {
+    "filename": "Garden_Cactus_96.schem",
+    "name": "Garden cactus grid \u2014 96x96",
+    "category": "Garden",
+    "dimensions": [
+      96,
+      4,
+      96
+    ],
+    "placed_blocks": 15843,
+    "blocks_by_type": {
+      "minecraft:cactus": 6627,
+      "minecraft:sand": 2209,
+      "minecraft:stone_bricks": 7007
+    },
+    "note": "Cactus needs unobstructed side space; schematic is a manual guide."
+  },
+  {
+    "filename": "Garden_Mushroom_96.schem",
+    "name": "Garden mushroom mycelium field \u2014 96x96",
+    "category": "Garden",
+    "dimensions": [
+      96,
+      2,
+      96
+    ],
+    "placed_blocks": 10240,
+    "blocks_by_type": {
+      "minecraft:brown_mushroom": 512,
+      "minecraft:mycelium": 8836,
+      "minecraft:red_mushroom": 512,
+      "minecraft:stone_bricks": 380
+    },
+    "note": "Check growth lighting and farm eligibility on the server."
+  },
+  {
+    "filename": "Mega_Melon_Double_192x96.schem",
+    "name": "Double plot melon \u2014 192x96",
+    "category": "Mega",
+    "dimensions": [
+      192,
+      2,
+      96
+    ],
+    "placed_blocks": 22944,
+    "blocks_by_type": {
+      "minecraft:attached_melon_stem": 2256,
+      "minecraft:dirt": 2256,
+      "minecraft:farmland": 2256,
+      "minecraft:melon": 2256,
+      "minecraft:stone_bricks": 11758,
+      "minecraft:water": 2162
+    },
+    "note": "Requires two adjacent plots. Benchmark net coins per hour before committing."
+  },
+  {
+    "filename": "Mega_Pumpkin_Double_192x96.schem",
+    "name": "Double plot pumpkin \u2014 192x96",
+    "category": "Mega",
+    "dimensions": [
+      192,
+      2,
+      96
+    ],
+    "placed_blocks": 22944,
+    "blocks_by_type": {
+      "minecraft:attached_pumpkin_stem": 2256,
+      "minecraft:dirt": 2256,
+      "minecraft:farmland": 2256,
+      "minecraft:pumpkin": 2256,
+      "minecraft:stone_bricks": 11758,
+      "minecraft:water": 2162
+    },
+    "note": "Requires two adjacent plots. Routes are manual and server rules apply."
+  },
+  {
+    "filename": "Mega_NetherWart_Double_192x96.schem",
+    "name": "Double plot nether wart \u2014 192x96",
+    "category": "Mega",
+    "dimensions": [
+      192,
+      2,
+      96
+    ],
+    "placed_blocks": 35634,
+    "blocks_by_type": {
+      "minecraft:nether_wart": 17202,
+      "minecraft:soul_sand": 17202,
+      "minecraft:stone_bricks": 1230
+    },
+    "note": "Two adjacent plots. Crop purchase/setup cost can be significant."
+  }
+]

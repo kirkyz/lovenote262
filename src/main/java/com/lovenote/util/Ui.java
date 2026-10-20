@@ -84,6 +84,8 @@ public final class Ui {
 		MenuFx.maxSize = i.rippleSize.getI();
 		MenuFx.life = i.rippleLife.getI();
 		MenuFx.rippleAlpha = i.rippleAlpha.getI();
+        // Honour saved glass, glow, gradient, panel and accent settings.
+        // Earlier Moon override silently disabled them on every frame.
 		MenuFx.width = i.rippleWidth.getI();
 		MenuFx.vignette = i.menuVignette.get();
 		MenuFx.scanlines = i.menuScanlines.get();
@@ -178,7 +180,7 @@ public final class Ui {
     /** Compact glass HUD chrome with shared editable colours and low-cost shine. */
     public static void widgetCard(GuiGraphicsExtractor g, int x, int y, int w, int h, int opacity) {
         if (w <= 3 || h <= 3) return;
-        int r = Math.min(3, Math.max(1,h/14));
+        int r = Math.min(7, Math.max(4,h/8));
         int a = Math.max(0, Math.min(255,opacity));
         a = Math.round(a*meteordevelopment.meteorclient.gui.themes.lovenote.LovenoteMenuConfig.widgetOpacity/100f);
         int borderA = meteordevelopment.meteorclient.gui.themes.lovenote.LovenoteMenuConfig.widgetBorder;
@@ -186,10 +188,19 @@ public final class Ui {
         if (glowOn && glowA>0) rrect(g,x-1,y-1,w+2,h+2,r+1,Colors.alpha(accent2,Math.min(30,glowA)));
         rrect(g,x,y,w,h,r,Colors.alpha(accent2,borderA));
         rrectGrad(g,x+1,y+1,w-2,h-2,Math.max(1,r-1),
-            Colors.alpha(0x12101B,a),Colors.alpha(0x08080F,a));
+            Colors.alpha(0x141D2D,a),Colors.alpha(0x0C1220,a));
+        // Match the menu's restrained active edge, without changing HUD geometry.
+        if (accentBorder && borderA > 0 && h >= 22 && w >= 24)
+            rect(g,x+1,y+7,2,Math.max(1,h-14),
+                Colors.alpha(accent1,Math.min(115,Math.max(18,borderA))));
         if (glass && meteordevelopment.meteorclient.gui.themes.lovenote.LovenoteMenuConfig.widgetGlass && h>14) {
+            // A narrow linear specular highlight reads as polished glass without a thick glow.
             int sheen=meteordevelopment.meteorclient.gui.themes.lovenote.LovenoteMenuConfig.widgetSheen;
-            if(sheen>0)rect(g,x+6,y+2,Math.max(1,w/4),1,Colors.alpha(0xFFFFFF,Math.min(24,sheen)));
+            if(sheen>0) {
+                int aTop=Math.min(28,Math.round(sheen*0.28f));
+                rect(g,x+7,y+2,Math.max(1,w/3),1,Colors.alpha(0xFFFFFF,aTop));
+                rect(g,x+7,y+3,Math.max(1,w/6),1,Colors.alpha(accent1,Math.max(0,aTop/3)));
+            }
         }
     }
 

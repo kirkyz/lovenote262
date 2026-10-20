@@ -25,6 +25,10 @@ public final class SpotifyManager {
     public volatile long progressMs, durationMs, progressStamp;
     private volatile long progressNanos;
     private volatile String clockTrack = "";
+    // Serialize session reads and commands. Otherwise an old poll can arrive
+    // after a newer "next"/"seek" response and briefly restore the old song.
+    private final Object mediaIoLock = new Object();
+    private volatile long pausedSinceNanos = -1L;
     // The bridge may report the same (or older) position for several polls. The
     // HUD clock must not be re-anchored backwards for each of those samples.
     private long lastRawProgress = -1L;
@@ -89,6 +93,7 @@ public final class SpotifyManager {
         playing = false;
         title = ""; artist = ""; album = "";
         clockTrack = "";
+        pausedSinceNanos = -1L;
         progressMs = 0; durationMs = 0;
         progressNanos = System.nanoTime();
         progressStamp = System.currentTimeMillis();
@@ -101,6 +106,11 @@ public final class SpotifyManager {
     }
 
     private void poll() throws Exception {
+        synchronized (mediaIoLock) { pollLocked(); }
+    }
+
+    /** Called only with mediaIoLock held. Never run two bridge processes together. */
+    private void pollLocked() throws Exception {
         JsonObject o = execute();
         if (!o.has("found") || !o.get("found").getAsBoolean()) {
             clearPlayback("Open Spotify and play a track");
@@ -161,6 +171,8 @@ public final class SpotifyManager {
             progressNanos = now;
             lastRawProgress = reported;
             hasTrack = !freshTitle.isBlank();
+            if (!hasTrack || freshPlaying) pausedSinceNanos = -1L;
+            else if (pausedSinceNanos < 0L || previousPlaying || changed) pausedSinceNanos = now;
             status = hasTrack ? "Connected" : "No track available";
             if (changed) { rewindSamples = 0; requestedSeek = -1; }
             if (requestedSeek >= 0 && now >= requestedSeekUntil) requestedSeek = -1;
@@ -168,19 +180,26 @@ public final class SpotifyManager {
         String cover = str(o, "cover");
         if (!cover.equals(lastCover)) {
             lastCover = cover;
-            if (cover.isEmpty()) Minecraft.getInstance().execute(() -> artTexture = null);
+            if (cover.isEmpty()) Minecraft.getInstance().execute(() -> {
+                if (cover.equals(lastCover)) artTexture = null;
+            });
             else {
                 try {
                     byte[] bytes = Base64.getDecoder().decode(cover);
                     if (bytes.length <= 2_000_000) {
                         NativeImage img = NativeImage.read(new ByteArrayInputStream(bytes));
                         Minecraft.getInstance().execute(() -> {
+                            // Image decode can finish after a track skip. Reject stale
+                            // artwork before it reaches the render thread.
+                            if (!cover.equals(lastCover)) { img.close(); return; }
                             Identifier id = Identifier.fromNamespaceAndPath("lovenote", "gen/spotify_art");
                             Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(() -> "drainer_album", img));
                             artTexture = id;
                         });
                     }
-                } catch (Exception ignored) { artTexture = null; }
+                } catch (Exception ignored) {
+                    if (cover.equals(lastCover)) artTexture = null;
+                }
             }
         }
     }
@@ -192,8 +211,16 @@ public final class SpotifyManager {
         long value = progressMs + (playing ? sinceMs : 0);
         return Math.max(0, durationMs > 0 ? Math.min(durationMs, value) : value);
     }
+    /** Idle means a retained, paused media session; configurable HUD grace handles pauses. */
+    public boolean idleFor(long milliseconds) {
+        long since = pausedSinceNanos;
+        return !hasTrack || (!playing && since >= 0L
+            && System.nanoTime() - since >= Math.max(0L, milliseconds) * 1_000_000L);
+    }
     private void command(String... args) {
-        Thread t = new Thread(() -> { try { execute(args); poll(); }
+        Thread t = new Thread(() -> { try {
+            synchronized (mediaIoLock) { execute(args); pollLocked(); }
+        }
             catch (Exception e) { status = "Control error: " + e.getMessage(); } }, "Drainer-Media-Control");
         t.setDaemon(true); t.start();
     }

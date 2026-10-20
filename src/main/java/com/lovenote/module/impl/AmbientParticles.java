@@ -9,6 +9,7 @@ import com.lovenote.util.Fx;
 import com.lovenote.util.Tex;
 import com.lovenote.util.Vfx;
 import com.lovenote.util.WorldRenderContext;
+import com.lovenote.util.WorldFxGrid;
 import com.mojang.blaze3d.vertex.PoseStack;
 import meteordevelopment.meteorclient.renderer.MeshBuilder;
 import org.joml.Matrix4f;
@@ -28,29 +29,32 @@ public final class AmbientParticles extends Module {
     }
 
     @Override public void onRender3D(WorldRenderContext ctx, PoseStack stack) {
-        if (mc.player == null || mc.level == null) return;
-        Matrix4f mat = stack.last().pose();
-        Fx.cameraBasis(ctx.camera());
-        Tex.ensure();
-        Fx.texture(Tex.SOFT);
-        MeshBuilder b = Fx.texQuadsDepth();
-        final float t = System.currentTimeMillis() * 0.001f;
-        final float r = radius.getF(), sp = speed.getF();
-        final double x = mc.player.getX(), y = mc.player.getY(), z = mc.player.getZ();
-        for (int i = 0, n = count.getI(); i < n; i++) {
-            float a = Vfx.hash(i * 23 + 1), c = Vfx.hash(i * 23 + 2), d = Vfx.hash(i * 23 + 3);
-            float phase = ((c + t * sp * (0.025f + d * 0.02f)) % 1f);
-            float px = (float) (x + (a * 2 - 1) * r + Math.sin(t * sp + i) * 0.3f);
-            float py = (float) (y - 1 + phase * (r * 1.4));
-            float pz = (float) (z + (d * 2 - 1) * r);
-            int tint = switch (palette.get()) {
-                case "Rainbow" -> Colors.rainbow(a + t * 0.025f);
+        if(mc.player==null || mc.level==null)return;
+        double r=radius.get(),span=Math.max(2.0,r*0.7);
+        double ox=mc.player.getX(),oy=mc.player.getY()+1,oz=mc.player.getZ();
+        int gx=WorldFxGrid.cell(ox,span),gy=WorldFxGrid.cell(oy,span),gz=WorldFxGrid.cell(oz,span);
+        Matrix4f mat=stack.last().pose();
+        Fx.cameraBasis(ctx.camera());Tex.ensure();Fx.texture(Tex.SOFT);
+        MeshBuilder b=Fx.texQuadsDepth();
+        double t=System.nanoTime()*1e-9*speed.get();
+        int n=VisualOptimizer.budget(count.getI(),3);
+        for(int i=0;i<n;i++) {
+            int tile=(i*11)%27;
+            int ix=gx+tile%3-1,iy=gy+(tile/3)%3-1,iz=gz+(tile/9)%3-1,seed=i/27;
+            float a=WorldFxGrid.hash(ix,iy,iz,seed*11+1), c=WorldFxGrid.hash(ix,iy,iz,seed*11+2),d=WorldFxGrid.hash(ix,iy,iz,seed*11+3);
+            double x=(ix+a)*span + Math.sin(t*0.66+a*6)*0.28;
+            double y=(iy+c)*span + Math.sin(t*0.95+d*6)*0.37;
+            double z=(iz+d)*span + Math.cos(t*0.48+c*6)*0.28;
+            int tint=switch(palette.get()) {
+                case "Rainbow" -> Colors.rainbow(a+(float)t*0.025f);
                 case "Ice" -> 0xFF9AE8FF;
                 case "White" -> 0xFFFFFFFF;
                 default -> Colors.wave(a);
             };
-            int alpha = (int) (opacity.getI() * (0.35 + 0.65 * Math.sin(Math.PI * phase)));
-            Fx.billboard(b, mat, px, py, pz, size.getF() * (0.7f + c * 0.8f), Colors.alpha(tint, alpha));
+            float fade=WorldFxGrid.edgeFade(x-ox,y-oy,z-oz,r);
+            int alpha=(int)(opacity.getI()*fade*(0.7+0.3*Math.sin(t*1.5+a*6.28)));
+            if(alpha<5)continue;
+            Fx.billboard(b,mat,(float)x,(float)y,(float)z,size.getF()*(0.6f+c*0.65f),Colors.alpha(tint,alpha));
         }
         Fx.draw();
     }

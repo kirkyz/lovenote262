@@ -29,11 +29,34 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.world.entity.Entity;
 
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.Locale;
 
 public class ModuleManager {
 	private final List<Module> modules = new ArrayList<>();
+    // A failing module must not prevent every module later in the registry from updating.
+    private final Map<Module, Integer> faults = new IdentityHashMap<>();
+    private void fault(Module module, String stage, RuntimeException ex) {
+        int n = faults.getOrDefault(module, 0) + 1;
+        faults.put(module, n);
+        if (n == 1 || n == 3) {
+            System.err.println("[Drainer] " + module.name + " failed during " + stage +
+                " (" + n + "/3): " + ex);
+            ex.printStackTrace(System.err);
+        }
+        if (n >= 3) {
+            // Allow other modules to keep rendering instead of crashing the entire pipeline.
+            try { module.setEnabled(false); }
+            catch (RuntimeException secondary) { module.enabled = false; }
+            if (meteordevelopment.meteorclient.MeteorClient.mc.player != null)
+                meteordevelopment.meteorclient.MeteorClient.mc.player.sendSystemMessage(
+                    net.minecraft.network.chat.Component.literal(
+                        "[Drainer] Disabled failing module: " + module.name + " (see latest.log)"));
+            faults.remove(module);
+        }
+    }
 
 	public ModuleManager() {
 		register(new GroundFog()).setEnabled(true);
@@ -42,6 +65,20 @@ public class ModuleManager {
 		register(new Interface()).setEnabled(true);
 		register(new LogoWidget()).setEnabled(true);
 		register(new FunnyCrosshair()).setEnabled(true);
+		// Anubis-inspired visual/HUD modules; each starts disabled for performance.
+		register(new FloatingRelics());
+		register(new TotemSpirit());
+		register(new RelicParticles());
+		register(new LowHealthWarning());
+		register(new BlockOverlay());
+		register(new RegionMap());
+		register(new HeadCosmetic());
+		register(new com.lovenote.module.impl.Character());
+		register(new ColorGrading());
+		register(new SpawnerNotifier());
+		register(new BlockNotifier());
+		register(new PearlTrajectory());
+		register(new WeaponInspect());
 		register(new SkyExtras());
 		register(new CubeField());
 		register(new CrystalHalo());
@@ -193,6 +230,13 @@ public class ModuleManager {
 		register(new DrainerInfoBar());
         register(new SessionTimer());
         register(new EntityCounter());
+        // Stage 14: lightweight, functional native HUD additions.
+        register(new BiomeHud());
+        register(new LightLevelHud());
+        register(new FpsGraphHud());
+        // V17 compact utility additions; opt-in by default.
+        register(new ToolHealthHud());
+        register(new InventorySpaceHud());
 		register(new SpotifyHud());
 		register(new Lyrics());
 		register(new StaffList());
@@ -241,6 +285,8 @@ public class ModuleManager {
         register(new ServerMobAura());
         register(new MacroRecorder());
         register(new MacroLibrary());
+        register(new SkyBlockCoach());
+        register(new SchematicAssist());
         register(new MacroStatusHud());
 
 
@@ -278,24 +324,38 @@ public class ModuleManager {
 		return out;
 	}
 
-	public void tick() {
-		for (Module m : modules) if (m.enabled) m.onTick();
-	}
+    public void tick() {
+        for (Module m : modules) if (m.enabled) {
+            try { m.onTick(); } catch (RuntimeException ex) { fault(m, "tick", ex); }
+        }
+    }
 
-	public void render3D(WorldRenderContext ctx) {
-		PoseStack stack = ctx.matrixStack();
-		for (Module m : modules) if (m.enabled) m.onRender3D(ctx, stack);
-	}
+    public void render3D(WorldRenderContext ctx) {
+        PoseStack stack = ctx.matrixStack();
+        for (Module m : modules) if (m.enabled) {
+            try { m.onRender3D(ctx, stack); }
+            catch (RuntimeException ex) { fault(m, "world render", ex); }
+        }
+    }
 
-	public void hud(GuiGraphicsExtractor ctx, float tickDelta) {
-		for (Module m : modules) if (m.enabled) com.lovenote.util.HudScale.draw(m,ctx,tickDelta);
-	}
+    public void hud(GuiGraphicsExtractor ctx, float tickDelta) {
+        for (Module m : modules) if (m.enabled) {
+            try { com.lovenote.util.HudScale.draw(m, ctx, tickDelta); }
+            catch (RuntimeException ex) { fault(m, "HUD render", ex); }
+        }
+    }
 
-	public void attack(Entity target) {
-		for (Module m : modules) if (m.enabled) m.onAttack(target);
-	}
+    public void attack(Entity target) {
+        for (Module m : modules) if (m.enabled) {
+            try { m.onAttack(target); }
+            catch (RuntimeException ex) { fault(m, "attack event", ex); }
+        }
+    }
 
-	public void totemPop(Entity entity) {
-		for (Module m : modules) if (m.enabled) m.onTotemPop(entity);
-	}
+    public void totemPop(Entity entity) {
+        for (Module m : modules) if (m.enabled) {
+            try { m.onTotemPop(entity); }
+            catch (RuntimeException ex) { fault(m, "totem event", ex); }
+        }
+    }
 }

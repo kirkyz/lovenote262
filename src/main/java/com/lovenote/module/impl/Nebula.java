@@ -9,6 +9,7 @@ import com.lovenote.util.Fx;
 import com.lovenote.util.Tex;
 import com.lovenote.util.Vfx;
 import com.lovenote.util.WorldRenderContext;
+import com.lovenote.util.WorldFxGrid;
 import com.mojang.blaze3d.vertex.PoseStack;
 import meteordevelopment.meteorclient.renderer.MeshBuilder;
 import org.joml.Matrix4f;
@@ -33,19 +34,26 @@ public final class Nebula extends Module {
 
     public Nebula() { super("Nebula", Category.VISUALS); describe("Floating atmospheric nebula clouds with adjustable spread, colour and opacity."); }
     @Override public void onRender3D(WorldRenderContext ctx, PoseStack stack) {
-        if (mc.player == null) return;
-        Matrix4f mat = stack.last().pose();
-        Fx.cameraBasis(ctx.camera()); Tex.ensure(); Fx.texture(Tex.SOFT);
-        MeshBuilder b = Fx.texQuadsDepth();
-        float time = System.currentTimeMillis() * 0.001f * drift.getF();
-        for(int i=0, n=clouds.getI(); i<n; ++i) {
-            float h1=Vfx.hash(i*7+1), h2=Vfx.hash(i*7+2), h3=Vfx.hash(i*7+3);
-            float x=(float)mc.player.getX()+(h1*2-1)*spread.getF()+ (float)Math.sin(time+i)*0.35f;
-            float y=(float)mc.player.getY()+h2*5-1.5f;
-            float z=(float)mc.player.getZ()+(h3*2-1)*spread.getF();
-            Fx.billboard(b,mat,x,y,z,size.getF()*(0.6f+h2),Colors.alpha(tint(h1),opacity.getI()));
+        if(mc.player==null || mc.level==null)return;
+        double r=spread.get()*1.6,span=Math.max(3.0,r*0.7);
+        double ox=mc.player.getX(),oy=mc.player.getY()+1,oz=mc.player.getZ();
+        int gx=WorldFxGrid.cell(ox,span),gy=WorldFxGrid.cell(oy,span),gz=WorldFxGrid.cell(oz,span);
+        Matrix4f mat=stack.last().pose();Fx.cameraBasis(ctx.camera());Tex.ensure();Fx.texture(Tex.SOFT);
+        MeshBuilder b=Fx.texQuadsDepth();
+        double t=System.nanoTime()*1e-9*drift.get();
+        int n=VisualOptimizer.budget(clouds.getI(),3);
+        for(int i=0;i<n;i++) {
+            int tile=(i*11)%27;
+            int ix=gx+tile%3-1,iy=gy+(tile/3)%3-1,iz=gz+(tile/9)%3-1,seed=i/27;
+            float a=WorldFxGrid.hash(ix,iy,iz,seed*17+1),c=WorldFxGrid.hash(ix,iy,iz,seed*17+2),d=WorldFxGrid.hash(ix,iy,iz,seed*17+3);
+            double x=(ix+a)*span+Math.sin(t*0.36+i)*0.45;
+            double y=(iy+c)*span+Math.sin(t*0.23+c*6.28)*0.3;
+            double z=(iz+d)*span+Math.cos(t*0.31+i)*0.45;
+            float fade=WorldFxGrid.edgeFade(x-ox,y-oy,z-oz,r);
+            int alpha=(int)(opacity.getI()*fade*(0.7+0.3*Math.sin(t*0.6+a*6.28)));
+            if(alpha<4)continue;
+            Fx.billboard(b,mat,(float)x,(float)y,(float)z,size.getF()*(0.6f+c*0.8f),Colors.alpha(tint(a),alpha));
         }
         Fx.draw();
     }
-
 }

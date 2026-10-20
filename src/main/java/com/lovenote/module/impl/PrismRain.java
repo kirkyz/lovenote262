@@ -15,11 +15,11 @@ import org.joml.Matrix4f;
 /** Prism shards drifting down around you. */
 public class PrismRain extends Module {
 	private final ModeSetting colour = add(new ModeSetting("Colour", "Theme", "Theme", "Rainbow", "Ice", "Prism", "White"));
-	private final NumberSetting count = add(new NumberSetting("Count", 30, 2, 120, 1));
+	private final NumberSetting count = add(new NumberSetting("Count", 42, 2, 120, 1));
 	private final NumberSetting spread = add(new NumberSetting("Spread", 10, 2, 30, 0.5));
 	private final NumberSetting height = add(new NumberSetting("Height", 12, 3, 40, 1));
 	private final NumberSetting speed = add(new NumberSetting("Fall speed", 1.6, 0.1, 8.0, 0.1));
-	private final NumberSetting size = add(new NumberSetting("Size", 0.14, 0.03, 0.6, 0.01));
+	private final NumberSetting size = add(new NumberSetting("Size", 0.27, 0.03, 0.6, 0.01));
 	private final NumberSetting len = add(new NumberSetting("Length", 0.5, 0.1, 2.0, 0.05));
 	private final NumberSetting spin = add(new NumberSetting("Spin", 1.2, 0.0, 5.0, 0.05));
 	private final NumberSetting width = add(new NumberSetting("Line width", 0.02, 0.004, 0.09, 0.002));
@@ -57,7 +57,7 @@ public class PrismRain extends Module {
         cx=ax;cy=ay;cz=az;
 
 		float t = System.currentTimeMillis() / 1000f;
-		int n = count.getI();
+		int n = VisualOptimizer.budget(count.getI(), 2);
 		float sp = spread.getF();
 		float hh = height.getF();
 		float spd = speed.getF();

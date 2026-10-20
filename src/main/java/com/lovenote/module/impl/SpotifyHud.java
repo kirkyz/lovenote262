@@ -16,6 +16,7 @@ public final class SpotifyHud extends Module {
     private final NumberSetting size = add(new NumberSetting("Scale", .65, .25, 1.6, .05));
     private final BoolSetting compact = add(new BoolSetting("Compact", true));
     private final BoolSetting hideIdle = add(new BoolSetting("Hide when idle", true));
+    private final NumberSetting idleDelay = add(new NumberSetting("Hide after pause (s)", 30, 0, 120, 5));
     private final BoolSetting showTime = add(new BoolSetting("Timestamps", true));
     private final BoolSetting showControls = add(new BoolSetting("Control hints", true));
     private final BoolSetting artwork = add(new BoolSetting("Album artwork", true));
@@ -78,7 +79,7 @@ public final class SpotifyHud extends Module {
         // Keep Spotify visible as a preview in the HUD editor when nothing is playing.
         boolean editing = net.minecraft.client.Minecraft.getInstance().gui.screen() instanceof
             meteordevelopment.meteorclient.gui.screens.LovenoteModulesScreen screen && screen.isDrainerHudEditor();
-        if (!m.hasTrack && hideIdle.get() && !editing) return;
+        if (hideIdle.get() && (!m.hasTrack || m.idleFor(idleDelay.getI() * 1000L)) && !editing) return;
         double sc = Math.max(.25, Math.min(1.6, size.get()));
         scaleNow = sc;
         boolean small = compact.get();
@@ -118,12 +119,13 @@ public final class SpotifyHud extends Module {
         int localBarY = small ? 53 : 72;
         int localBarW = bw - tx - 11;
         Ui.rrect(g, tx, localBarY, localBarW, 2, 1, 0xFF493650);
+        long playbackTime = m.progress();
         if (m.durationMs > 0) {
-            double ratio = Math.max(0, Math.min(1, (double) m.progress() / m.durationMs));
+            double ratio = Math.max(0, Math.min(1, (double) playbackTime / m.durationMs));
             Ui.rrect(g, tx, localBarY, (int) Math.round(localBarW*ratio), 2, 1, 0xFFE7A4D8);
         }
         if (!small && showTime.get()) {
-            Ui.text(g, clock(m.progress()), tx, 81, 0xFFAE9BB9);
+            Ui.text(g, clock(playbackTime), tx, 81, 0xFFAE9BB9);
             String duration = clock(m.durationMs);
             Ui.text(g, duration, bw - 11 - Ui.textW(duration), 81, 0xFFAE9BB9);
         }

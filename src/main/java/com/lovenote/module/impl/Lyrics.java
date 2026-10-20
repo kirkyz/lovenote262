@@ -40,16 +40,30 @@ public final class Lyrics extends Module {
     private final NumberSetting maxHold = add(new NumberSetting("Max lyric hold (ms)", 5500, 2000, 12000, 250));
     private final BoolSetting oneLine = add(new BoolSetting("Single line", true));
     private final BoolSetting hideIdle = add(new BoolSetting("Hide when idle", true));
+    private final NumberSetting idleDelay = add(new NumberSetting("Hide after pause (s)", 15, 0, 120, 5));
     private final BoolSetting karaoke = add(new BoolSetting("Word highlight", true));
     private volatile String track = "", status = "Searching lyrics...";
     private volatile List<Line> lines = List.of();
+    // Optional *unsynchronised* fallback, not represented as fake timestamps.
+    private volatile List<String> plainLines = List.of();
+    private volatile boolean fallbackAttempted;
+    private static final String FALLBACK_URI = "https://api.lyrics.ovh/v1/";
     private volatile long nextRetryAt;
     private volatile int fetchAttempts;
     private volatile boolean fetchInProgress;
+    private volatile long fetchStartedNanos;
+    // A generation prevents a late A->B->A response from overwriting newer lyrics.
+    private volatile long lyricGeneration;
+    private volatile long trackDurationBucket = -1L;
     private static final HttpClient LYRICS_HTTP = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(6)).followRedirects(HttpClient.Redirect.NORMAL).build();
     // Transient 503/429 errors must never permanently lock out a track.
     private static final long MAX_RETRY_MS = 180_000L;
+    // Shared circuit-breaker: do not make two requests for every song while
+    // LRCLIB responds with 503 / 429, especially during playlist skipping.
+    private static volatile long providerRetryAt;
+    private static volatile String providerStatus = "Lyrics provider unavailable — retrying";
+    private enum ExactResult { FOUND, NOT_FOUND, RETRY_LATER }
     // At most one LRCLIB request in flight and one pending, even during rapid skipping.
     // Avoids accumulating network threads and requests as the Spotify track changes.
     private static final ThreadPoolExecutor LYRICS_WORKER = new ThreadPoolExecutor(
@@ -66,36 +80,131 @@ public final class Lyrics extends Module {
         describe("LRCLIB line-synced lyrics with estimated word highlighting; adjust Timing offset for your bridge.");
     }
     @Override public void onEnable() { SpotifyManager.I.start(); }
+    private static long durationBucket(long ms) {
+        return ms > 0 ? Math.round(ms / 5000.0) : 0L;
+    }
+    private boolean isCurrent(String key, long generation) {
+        return enabled && generation == lyricGeneration && key.equals(track);
+    }
     @Override public void onTick() {
         SpotifyManager m = SpotifyManager.I;
         if (!enabled) return;
         if (!m.hasTrack) {
-            track = ""; lines = List.of(); fetchAttempts = 0;
+            if (!track.isEmpty()) lyricGeneration++;
+            track = ""; trackDurationBucket = -1L;
+            lines = List.of(); plainLines = List.of(); fallbackAttempted = false; fetchAttempts = 0;
             nextRetryAt = 0; fetchInProgress = false;
             return;
         }
         String key = m.title + "|" + m.artist;
-        if (!key.equals(track)) {
-            track = key; lines = List.of(); status = "Finding timed lyrics...";
+        long bucket = durationBucket(m.durationMs);
+        if (!key.equals(track) || bucket != trackDurationBucket) {
+            lyricGeneration++;
+            track = key; trackDurationBucket = bucket;
+            lines = List.of(); plainLines = List.of(); fallbackAttempted = false; status = "Finding timed lyrics...";
             fetchAttempts = 0; nextRetryAt = 0; fetchInProgress = false;
             // A successful LRCLIB response is stored under Minecraft's config folder.
             // Reading it once per track avoids unnecessary requests during outages.
             List<Line> cached = loadCached(key, m.durationMs);
             if (cached.isEmpty()) cached = loadManual(m.title, m.artist);
             if (!cached.isEmpty()) { lines = cached; status = ""; }
+            else {
+                List<String> offlinePlain=loadPlainCached(key);
+                if (!offlinePlain.isEmpty()) {
+                    plainLines=offlinePlain; fallbackAttempted=true; status="Plain lyrics (timed search pending)";
+                }
+            }
         }
-        if (fetchInProgress || !lines.isEmpty() || System.currentTimeMillis() < nextRetryAt) return;
+        // DiscardOldestPolicy drops queued work on rapid track skipping; if a
+        // queued task is dropped, recover instead of leaving this track stuck.
+        if (fetchInProgress && System.nanoTime() - fetchStartedNanos > 30_000_000_000L)
+            fetchInProgress = false;
+        // A plain fallback is NOT a final result: continue searching for accurate timed lines.
+        // Previously cached/plain lyrics short-circuited LRCLIB forever for this track.
+        if (fetchInProgress || !lines.isEmpty()) return;
+        long now=System.currentTimeMillis();
+        if(now<providerRetryAt){
+            status=providerStatus;
+            // Do not block *all* songs just because LRCLIB is down.
+            // Use a separate provider once, showing plainly unsynchronised lyrics.
+            if (!fallbackAttempted) {
+                fallbackAttempted = true;
+                fetchInProgress = true;
+                fetchStartedNanos = System.nanoTime();
+                String title=m.title, artist=m.artist;
+                long generation=lyricGeneration;
+                LYRICS_WORKER.execute(() -> {
+                    try { loadPlainFallback(key,title,artist,generation); }
+                    finally { if (isCurrent(key,generation)) fetchInProgress=false; }
+                });
+            }
+            return;
+        }
+        if(now<nextRetryAt)return;
         fetchInProgress = true;
+        fetchStartedNanos = System.nanoTime();
         fetchAttempts++;
         nextRetryAt = System.currentTimeMillis() + retryDelay(fetchAttempts, 0L);
         String title=m.title,artist=m.artist;
         long duration=m.durationMs;
+        long generation = lyricGeneration;
         LYRICS_WORKER.execute(() -> {
             try {
-                if (key.equals(track)) fetch(key,title,artist,duration);
-            } finally { if(track.equals(key)) fetchInProgress=false; }
+                if (isCurrent(key, generation)) fetch(key,title,artist,duration,generation);
+            } finally { if (isCurrent(key,generation)) fetchInProgress=false; }
         });
     }
+    private static Path plainCachePath(String key) throws Exception {
+        byte[] hash=MessageDigest.getInstance("SHA-256").digest(key.getBytes(StandardCharsets.UTF_8));
+        StringBuilder name=new StringBuilder();
+        for(byte b:hash) name.append(String.format(Locale.ROOT,"%02x",b&255));
+        return FabricLoader.getInstance().getConfigDir().resolve("drainer-lyrics-cache")
+            .resolve("plain-"+name+".txt");
+    }
+    private static List<String> loadPlainCached(String key){
+        try {
+            Path path=plainCachePath(key);
+            if(!Files.isRegularFile(path)||Files.size(path)>70_000L)return List.of();
+            return List.copyOf(Files.readAllLines(path,StandardCharsets.UTF_8));
+        } catch(Exception ignored){return List.of();}
+    }
+    private static void savePlainCached(String key,List<String> data){
+        try {
+            Path path=plainCachePath(key);Files.createDirectories(path.getParent());
+            Files.write(path,data,StandardCharsets.UTF_8);
+        } catch(Exception ignored){}
+    }
+
+    /** Another public provider may have plain text even when LRCLIB is busy.
+     *  Never pretend these lines have accurate timing, and never retry in a loop.
+     */
+    private void loadPlainFallback(String key, String title, String artist, long generation) {
+        if (!isCurrent(key,generation) || title.isBlank() || artist.isBlank()) return;
+        try {
+            String url = FALLBACK_URI + URLEncoder.encode(artist,StandardCharsets.UTF_8).replace("+","%20")
+                + "/" + URLEncoder.encode(title,StandardCharsets.UTF_8).replace("+","%20");
+            HttpRequest req = HttpRequest.newBuilder(URI.create(url))
+                .header("User-Agent", "Drainer-Lyrics/7 (Minecraft HUD)")
+                .timeout(Duration.ofSeconds(7)).GET().build();
+            HttpResponse<String> res = LYRICS_HTTP.send(req,HttpResponse.BodyHandlers.ofString());
+            if(res.statusCode()!=200 || res.body().length()>120_000) return;
+            JsonObject json=JsonParser.parseString(res.body()).getAsJsonObject();
+            if(!json.has("lyrics") || json.get("lyrics").isJsonNull()) return;
+            String raw=json.get("lyrics").getAsString();
+            java.util.List<String> plain = new java.util.ArrayList<>();
+            for(String line:raw.split("\\R")) {
+                String trimmed=line.trim();
+                if(!trimmed.isEmpty() && trimmed.length()<300 && !trimmed.startsWith("Paroles de ")) plain.add(trimmed);
+                if(plain.size()>=160) break;
+            }
+            if(!plain.isEmpty() && isCurrent(key,generation) && lines.isEmpty()) {
+                plainLines=List.copyOf(plain);
+                status="Plain lyrics (not synced)";
+                savePlainCached(key,plain);
+            }
+        } catch (Exception ignored) { /* Secondary provider is best-effort. */ }
+    }
+
     private static String norm(String s) {
         return s == null ? "" : s.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]", "");
     }
@@ -174,8 +283,18 @@ public final class Lyrics extends Module {
             Files.writeString(path, lrc, StandardCharsets.UTF_8);
         } catch (Exception ignored) { /* cache is optional on locked/read-only folders */ }
     }
-    /** One bounded official exact-match fallback on a search 503. */
-    private boolean tryExact(String key, String title, String artist, long duration) {
+    private void providerBackoff(String key,long generation,int http,HttpResponse<?> response){
+        long delay=retryDelay(fetchAttempts,retryAfterMs(response));
+        providerRetryAt=Math.max(providerRetryAt,System.currentTimeMillis()+delay);
+        providerStatus=http==429?"Lyrics rate limited — retrying later"
+            :"Lyrics provider busy ("+http+") — retrying later";
+        if(isCurrent(key,generation)){
+            status=providerStatus;
+            nextRetryAt=Math.max(nextRetryAt,providerRetryAt);
+        }
+    }
+    /** Try the exact recording; a 503/429 must NOT trigger a second search request. */
+    private ExactResult tryExact(String key, String title, String artist, long duration, long generation) {
         try {
             String url = "https://lrclib.net/api/get?track_name="
                 + URLEncoder.encode(title, StandardCharsets.UTF_8)
@@ -185,25 +304,28 @@ public final class Lyrics extends Module {
                 .header("User-Agent", "Drainer-Lyrics/6.1 (Minecraft HUD)")
                 .timeout(Duration.ofSeconds(9)).GET().build();
             HttpResponse<String> response=LYRICS_HTTP.send(req,HttpResponse.BodyHandlers.ofString());
-            if(response.statusCode()!=200)return false;
+            int http=response.statusCode();
+            if(http==429 || http>=500){providerBackoff(key,generation,http,response);return ExactResult.RETRY_LATER;}
+            if(http!=200)return ExactResult.NOT_FOUND;
             JsonObject o=JsonParser.parseString(response.body()).getAsJsonObject();
-            if(!o.has("syncedLyrics") || o.get("syncedLyrics").isJsonNull())return false;
+            if(!o.has("syncedLyrics") || o.get("syncedLyrics").isJsonNull())return ExactResult.NOT_FOUND;
             String raw=o.get("syncedLyrics").getAsString();
             List<Line> result=parse(raw);
-            if(result.isEmpty()||!track.equals(key))return false;
+            if(result.isEmpty()||!isCurrent(key,generation))return ExactResult.NOT_FOUND;
             if(duration>0 && o.has("duration") && !o.get("duration").isJsonNull()
-                && Math.abs(duration/1000.0-o.get("duration").getAsDouble())>18)return false;
+                && Math.abs(duration/1000.0-o.get("duration").getAsDouble())>18)return ExactResult.NOT_FOUND;
             lines=List.copyOf(result);status="";
             saveCached(key,duration,raw);
-            return true;
-        } catch(Exception ignored){return false;}
+            return ExactResult.FOUND;
+        } catch(Exception ignored){return ExactResult.NOT_FOUND;}
     }
-    private void fetch(String key, String title, String artist, long duration) {
+    private void fetch(String key, String title, String artist, long duration, long generation) {
         try {
             // Look up the exact recording before broad search: fewer mismatches and
             // fewer 503 errors when only the search endpoint is overloaded.
-            if (!key.equals(track) || tryExact(key, title, artist, duration)) return;
-            if (!key.equals(track)) return;
+            if (!isCurrent(key,generation)) return;
+            ExactResult exact=tryExact(key,title,artist,duration,generation);
+            if(exact!=ExactResult.NOT_FOUND || !isCurrent(key,generation))return;
             String url = "https://lrclib.net/api/search?track_name=" + URLEncoder.encode(title, StandardCharsets.UTF_8)
                 + "&artist_name=" + URLEncoder.encode(artist, StandardCharsets.UTF_8);
             HttpRequest req = HttpRequest.newBuilder(URI.create(url))
@@ -212,20 +334,18 @@ public final class Lyrics extends Module {
             HttpResponse<String> response = LYRICS_HTTP.send(req, HttpResponse.BodyHandlers.ofString());
             int http = response.statusCode();
             // Search can fail while the official exact-track endpoint still works.
-            if (http == 429 || http == 503 || (http >= 500 && http < 600)) {
-                if (track.equals(key)) {
-                    nextRetryAt = System.currentTimeMillis() + retryDelay(fetchAttempts, retryAfterMs(response));
-                    status = http == 503 ? "Lyrics server busy (503) — retrying..."
-                        : http == 429 ? "Lyrics rate limited — retrying..."
-                        : "Lyrics service error (" + http + ") — retrying...";
-                }
+            if (http == 429 || http>=500) {
+                providerBackoff(key,generation,http,response);
                 return;
             }
             if (http != 200) {
-                if (track.equals(key)) {
+                if (isCurrent(key,generation)) {
                     status = "Lyrics request returned HTTP " + http;
                     // Unknown 4xx requests are usually not transient; avoid flooding the API.
                     nextRetryAt = System.currentTimeMillis() + 300_000L;
+                }
+                if(!fallbackAttempted && isCurrent(key,generation)) {
+                    fallbackAttempted=true;loadPlainFallback(key,title,artist,generation);
                 }
                 return;
             }
@@ -251,19 +371,27 @@ public final class Lyrics extends Module {
                     && Math.abs(duration / 1000.0 - o.get("duration").getAsDouble()) > 18) continue;
                 if (score < bestScore) { bestScore = score; best = parsed; bestRaw = candidateRaw; }
             }
-            if (track.equals(key)) {
+            if (isCurrent(key,generation)) {
                 lines = List.copyOf(best);
                 status = best.isEmpty() ? "No timed lyrics found for this track" : "";
-                if (best.isEmpty()) nextRetryAt = System.currentTimeMillis() + 300_000L;
+                if (best.isEmpty()) nextRetryAt = System.currentTimeMillis() + 90_000L;
                 else saveCached(key, duration, bestRaw);
             }
+            if(best.isEmpty() && !fallbackAttempted && isCurrent(key,generation)) {
+                fallbackAttempted=true;
+                loadPlainFallback(key,title,artist,generation);
+            }
         } catch (Exception ex) {
-            if (track.equals(key)) {
+            if (isCurrent(key,generation)) {
                 String reason = ex.getMessage();
                 if (reason == null || reason.isBlank()) reason = ex.getClass().getSimpleName();
                 if (reason.length() > 32) reason = reason.substring(0, 32);
                 status = "Lyrics connection error — retrying...";
                 nextRetryAt = System.currentTimeMillis() + retryDelay(fetchAttempts, 0);
+            }
+            if(!fallbackAttempted && isCurrent(key,generation)) {
+                fallbackAttempted=true;
+                loadPlainFallback(key,title,artist,generation);
             }
         }
     }
@@ -291,12 +419,12 @@ public final class Lyrics extends Module {
         while (!s.isEmpty() && Ui.textW(s + "…") > max) s=s.substring(0,s.length()-1);
         return s + "…";
     }
-    private void drawWords(GuiGraphicsExtractor g, Line line, long start, long end, int textX, int textY, int limit) {
+    private void drawWords(GuiGraphicsExtractor g, Line line, long start, long end, long pos, int textX, int textY, int limit) {
         String s = fit(line.text, limit);
         if (s.isEmpty()) return;
         if (!karaoke.get() || end <= start) { Ui.text(g, s, textX, textY, 0xFFF0B8DD); return; }
         double fraction=Math.max(0,Math.min(1,(double)
-            (SpotifyManager.I.progress()+timingOffset.getI()-start)/(end-start)));
+            (pos-start)/(end-start)));
         // Estimated character progression from line timestamps, not true per-word timing.
         // Two draw calls prevent expensive one-character-at-a-time rendering.
         int split=(int)Math.round(s.length()*fraction);
@@ -316,7 +444,8 @@ public final class Lyrics extends Module {
             && m.progress() >= m.durationMs - 180;
         boolean editing = net.minecraft.client.Minecraft.getInstance().gui.screen() instanceof
             meteordevelopment.meteorclient.gui.screens.LovenoteModulesScreen screen && screen.isDrainerHudEditor();
-        if ((!m.hasTrack || finished) && hideIdle.get() && !editing) return;
+        boolean idle = m.idleFor(idleDelay.getI() * 1000L);
+        if ((!m.hasTrack || finished || idle) && hideIdle.get() && !editing) return;
         double sc = Math.max(.25, Math.min(1.6, scale.get()));
         boolean single = oneLine.get();
         int bw = single ? 270 : 308, bh = single ? 37 : 83;
@@ -327,9 +456,24 @@ public final class Lyrics extends Module {
         pose.pushMatrix(); pose.translate(px, py); pose.scale((float)sc,(float)sc);
         Ui.widgetCard(g,0,0,bw,bh,214);
         Ui.text(g,"LIVE LYRICS",9,5,0xFFB595CB);
-        List<Line> ls = lines;
-        if (ls.isEmpty()) {
-            Ui.text(g,fit(!m.hasTrack?"Play music to preview lyrics":status,bw-18),9,22,0xFFC6ACC9);
+        // Do not draw the previous song during the tick before a track switch
+        // is processed. Duration bucket prevents reuse for different recordings.
+        boolean matching = m.hasTrack && track.equals(m.title + "|" + m.artist)
+            && trackDurationBucket == durationBucket(m.durationMs);
+        List<Line> ls = matching ? lines : List.of();
+        List<String> pl = matching ? plainLines : List.of();
+        if (ls.isEmpty() && !pl.isEmpty()) {
+            // An approximate browse position, clearly marked as unsynchronised.
+            long duration=Math.max(1L,m.durationMs);
+            int idx=(int)Math.min(pl.size()-1,Math.max(0L,m.progress()*pl.size()/duration));
+            Ui.text(g,"PLAIN · "+fit(pl.get(idx),bw-51),9,22,0xFFD9B8EA);
+            if(!single) {
+                if(idx>0) Ui.text(g,fit(pl.get(idx-1),bw-18),9,39,0xFF9483A1);
+                if(idx+1<pl.size()) Ui.text(g,fit(pl.get(idx+1),bw-18),9,61,0xFF9483A1);
+            }
+        } else if (ls.isEmpty()) {
+            Ui.text(g,fit(!m.hasTrack ? "Play music to preview lyrics"
+                : !matching ? "Finding timed lyrics..." : status,bw-18),9,22,0xFFC6ACC9);
         } else {
             long pos = Math.max(0, m.progress()+timingOffset.getI());
             int idx = -1;
@@ -344,7 +488,7 @@ public final class Lyrics extends Module {
                 // LRCLIB gives line start timestamps, not reliable end timestamps.
                 // Avoid displaying the same finished lyric through long gaps or outro.
                 if(pos>holdEnd) Ui.text(g,"♪",9,single?22:39,0xFFA78EBB);
-                else drawWords(g,ls.get(idx),start,end,9,single?22:39,bw-28);
+                else drawWords(g,ls.get(idx),start,end,pos,9,single?22:39,bw-28);
                 if(!single) {
                     if(idx>0) Ui.text(g,fit(ls.get(idx-1).text,bw-18),9,26,0xFF776F88);
                     if(idx+1<ls.size()) Ui.text(g,fit(ls.get(idx+1).text,bw-18),9,63,0xFF867B96);

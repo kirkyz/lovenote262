@@ -9,6 +9,7 @@ import meteordevelopment.meteorclient.gui.tabs.Tabs;
 import meteordevelopment.meteorclient.gui.themes.lovenote.LovenoteDraw;
 import meteordevelopment.meteorclient.gui.themes.lovenote.LovenoteMenuConfig;
 import meteordevelopment.meteorclient.gui.themes.lovenote.LovenotePalette;
+import meteordevelopment.meteorclient.gui.themes.lovenote.DrainerSkin;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Category;
 import meteordevelopment.meteorclient.systems.modules.Module;
@@ -36,7 +37,7 @@ import java.util.Set;
 
 import static meteordevelopment.meteorclient.MeteorClient.mc;
 
-/** Faithful port of the old client's LovenoteScreen, on vanilla GuiGraphicsExtractor. */
+/** Drainer module and HUD screen, including the streamlined Moon workspace. */
 public class LovenoteModulesScreen extends TabScreen {
     private static final int PW = 208, PH = 320, ACC_COLS = 11, RAIL_MIN = 46;
     // Existing registry placeholders stay untouched. Only their menu grouping changes.
@@ -72,6 +73,9 @@ public class LovenoteModulesScreen extends TabScreen {
     private int vw, vh;
     private float dt, ga = 1f, openMs, closeMs, tabMs, scrollTarget, scrollShown, panelScrollTarget, panelScrollShown;
     private float pillY = -1f;
+    // UI-only spring coordinate; follows category selection at any FPS.
+    private float motionRailY = Float.NaN;
+
     private int maxScroll, panelMax;
     private boolean closing, finishClose, animating;
     private long lastNano;
@@ -92,6 +96,7 @@ public class LovenoteModulesScreen extends TabScreen {
 
     private float[] px, py, pvx, pvy;
     private int particleCount = 45;
+    private int moonContentTop;
     private String searchText = "";
     private boolean searchFocused;
     // Drainer-native HUD editor: independent of Meteor's HUD implementation.
@@ -105,6 +110,9 @@ public class LovenoteModulesScreen extends TabScreen {
     private int macroGuideSelected, macroGuideScroll;
     private int macroTemplateSelected;
     private boolean macroLibraryMode, macroGuideTyping;
+    private int macroWorkspaceTab, schematicSelected, schematicScroll, schematicMaterialOffset;
+    private boolean schematicMaterialsExpanded;
+    private java.util.List<String> schematicFiles=java.util.List.of();
     private String macroGuideQuery="", macroFeedback="";
     private String macroSaveName="";
     private boolean macroNameTyping;
@@ -230,8 +238,8 @@ public class LovenoteModulesScreen extends TabScreen {
         try {
             int vWidth=Math.max(1,(int)(width/HUD_CHROME_SCALE));
             int vHeight=Math.max(1,(int)(height/HUD_CHROME_SCALE));
-            txt(g,"DRAINER  /  HUD",19,18,0xDFC7A5E0);
-            txt(g,"ESC to close",153,18,0x8DBBA8C7);
+            txt(g,"DRAINER  /  HUD EDITOR",19,18,DrainerSkin.TEXT);
+            txt(g,"ESC to close",185,18,DrainerSkin.MUTED);
 
             // Pure text dock: no full-width window, no chips, no individual boxes.
             // A restrained underline indicates the selected module without hiding gameplay.
@@ -267,13 +275,12 @@ public class LovenoteModulesScreen extends TabScreen {
                 int ih=Math.min(156,Math.max(108,vHeight-dockH-53));
                 int ix=vWidth-iw-17,iy=Math.max(46,dockY-ih-10);
                 hudInspectorLeft=Math.round(ix*HUD_CHROME_SCALE);
-                neon(g,ix,iy,iw,ih,6,0xE5110D21,0xA5844AA9);
-                txt(g,"WIDGET  /  "+hudSelected.name,ix+12,iy+13,0xFFF4D7FC);
+                DrainerSkin.surface(g,ix,iy,iw,ih,9,false);
+                txt(g,"WIDGET  /  "+hudSelected.name,ix+12,iy+13,DrainerSkin.TEXT);
                 txt(g,"×",ix+iw-18,iy+12,0xFFF6B8E9);
                 hudHit(ix+iw-25,iy+5,21,23,16,hudSelected,null);
                 int line=iy+34;
-                neon(g,ix+12,line-2,40,17,8,
-                    hudSelected.enabled?0xBF603877:0x87352743,0x77704A99);
+                DrainerSkin.surface(g,ix+12,line-2,40,17,7,hudSelected.enabled);
                 txt(g,hudSelected.enabled?"ON":"OFF",ix+22,line+3,0xFFFFDCF8);
                 hudHit(ix+12,line-2,40,17,2,hudSelected,null);
                 txt(g,"SCALE",ix+65,line+2,0xFFD5BCD9);
@@ -326,50 +333,58 @@ public class LovenoteModulesScreen extends TabScreen {
         // The previous cap (.62) filled most of a 1080p display at GUI scale 4.
         // Keep the virtual layout stable so preset hitboxes and save/load actions
         // remain aligned, but reduce its final size on screen.
-        return Math.max(.29f, Math.min(.46f,
-            Math.min((width - 22f) / 580f, (height - 22f) / 306f)));
+        return Math.max(.32f, Math.min(.83f,
+            Math.min((width - 26f) / 738f, (height - 26f) / 474f)));
     }
-    /** Lightweight, single-border macro chrome; does not alter the main ClickGUI. */
-    private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int bg,int edge) {
-        if(w<4||h<4)return;
-        // One hairline + restrained top reflection, no stacked pill outlines.
-        rr(g,x-1,y-1,w+2,h+2,Math.min(r+1,7),(edge & 0x00FFFFFF) | 0x30000000);
-        rr(g,x,y,w,h,Math.min(r,6),bg);
-        if(h>20) fill(g,x+8,y+1,x+Math.max(9,w/3),y+2,0x237C689F);
-    }
+/** Same radius, surface and editable accent used by the main Drainer dashboard. */
+private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int bg,int edge) {
+    // Controls and cards must not share one flat fill: derive state from
+    // original active colours, keeping the existing hit rectangles intact.
+    boolean selected = ((bg >>> 16) & 0xFF) >= 70 ||
+        (((edge >>> 24) & 0xFF) >= 0x80 && ((bg >>> 16) & 0xFF) >= 60);
+    if (h >= 95) DrainerSkin.surface(g,x,y,w,h,11,false);
+    else DrainerSkin.control(g,x,y,w,h,selected);
+}
     private void macroGuideDraw(GuiGraphicsExtractor g) {
         macroGuideHits.clear();
-        g.fill(0,0,width,height,0x11080510);
+        g.fill(0,0,width,height,0x72060912);
         float s=macroScale();
         int vWidth=Math.max(1,Math.round(width/s)),vHeight=Math.max(1,Math.round(height/s));
         var pose=g.pose();
         pose.pushMatrix(); pose.scale(s,s);
         // Compact modal independent of Minecraft's pixelated GUI scale.
-        int boxW=Math.min(vWidth-24,580),boxH=Math.min(vHeight-24,306);
+        int boxW=Math.min(vWidth-24,macroWorkspaceTab==3?706:640),boxH=Math.min(vHeight-24,macroWorkspaceTab==3?440:405);
         int boxX=(vWidth-boxW)/2,boxY=(vHeight-boxH)/2;
-        macroGlass(g,boxX,boxY,boxW,boxH,7,0xE40E0C19,0x986F4D9A);
-        txtS(g,"Drainer   /   Macros",boxX+17,boxY+13,0xFFFFDDF9);
-        int tabX=boxX+Math.max(150,boxW-220);
-        for(int i=0;i<2;i++) {
-            int xx=tabX+i*78;
-            boolean active=(i==1)==macroLibraryMode;
-            macroGlass(g,xx,boxY+10,72,20,8,active?0xAA422456:0xA3141123,
-                active?0x90C48CD9:0x303A315F);
-            txt(g,i==0?"Guides":"Library",xx+10,boxY+16,active?0xFFFFE9FC:0xFFAE9BC1);
-            macroGuideHits.add(new int[]{xx,boxY+10,72,20,i==0?-2:-3});
+        DrainerSkin.surface(g,boxX,boxY,boxW,boxH,13,false);
+        // Purposeful compact header: brand lockup, active tab pills and close.
+        rr(g,boxX+14,boxY+9,25,25,7,0xE02F2550);
+        txtS(g,"D",boxX+23,boxY+17,DrainerSkin.TEXT);
+        txtS(g,"DRAINER",boxX+49,boxY+11,DrainerSkin.TEXT);
+        txt(g,"WORKSPACE",boxX+49,boxY+24,DrainerSkin.MUTED);
+        fill(g,boxX+15,boxY+40,boxX+boxW-15,boxY+41,DrainerSkin.DIVIDER);
+        int tabW=Math.max(43,Math.min(67,(boxW-165)/4));
+        int tabX=boxX+boxW-4*(tabW+4)-27;
+        for(int i=0;i<4;i++) {
+            int xx=tabX+i*(tabW+3);
+            boolean active=macroWorkspaceTab==i;
+            DrainerSkin.control(g,xx,boxY+10,tabW,23,active);
+            txt(g,new String[]{"Guides","Library","SkyBlock","Schems"}[i],xx+8,boxY+18,active?DrainerSkin.TEXT:DrainerSkin.SUBTEXT);
+            macroGuideHits.add(new int[]{xx,boxY+10,tabW,23,-20-i});
         }
-        int xClose=boxX+boxW-22;
-        txtS(g,"×",xClose,boxY+16,0xFFF1D8F5);
-        macroGuideHits.add(new int[]{xClose-8,boxY+8,25,23,-1});
-        macroGlass(g,boxX+14,boxY+42,Math.min(257,boxW/2),22,9,0x9A171326,0x5B533271);
-        String placeholder=macroLibraryMode?"Search presets...":"Search guides...";
+        int xClose=boxX+boxW-19;
+        txtS(g,"x",xClose,boxY+18,DrainerSkin.SUBTEXT);
+        macroGuideHits.add(new int[]{xClose-8,boxY+8,24,25,-1});
+        DrainerSkin.field(g,boxX+14,boxY+49,Math.min(257,boxW/2),25);
+        String placeholder=switch(macroWorkspaceTab){case 1 -> "Search presets...";case 2 -> "SkyBlock objective tracker";case 3 -> "Local schematics folder";default -> "Search guides...";};
         txt(g,macroGuideQuery.isEmpty()?placeholder:macroGuideQuery,
-            boxX+24,boxY+49,macroGuideQuery.isEmpty()?0xFF9982AB:0xFFF3DFF8);
-        macroGuideHits.add(new int[]{boxX+14,boxY+42,Math.min(257,boxW/2),22,-4});
-        txt(g,macroLibraryMode?"Built-in presets  /  Saved routes":"Browse guides  /  Instructions",
-            boxX+17,boxY+71,0xFFA892BD);
-        int paneX=boxX+14,paneY=boxY+88,paneW=Math.max(132,Math.min(213,boxW/3)),paneH=boxH-102,rowH=29;
+            boxX+24,boxY+57,macroGuideQuery.isEmpty()?DrainerSkin.MUTED:DrainerSkin.TEXT);
+        macroGuideHits.add(new int[]{boxX+14,boxY+49,Math.min(257,boxW/2),25,-4});
+        txt(g,switch(macroWorkspaceTab){case 1 -> "Built-in presets  /  Saved routes";case 2 -> "Step-by-step levelling  /  Profit planner";case 3 -> "Local files  /  Manual block placement";default -> "Browse guides  /  Instructions";},
+            boxX+17,boxY+83,DrainerSkin.MUTED);
+        int paneX=boxX+14,paneY=boxY+101,paneW=Math.max(132,Math.min(213,boxW/3)),paneH=boxH-115,rowH=29;
         macroGlass(g,paneX,paneY,paneW,paneH,9,0xB9151122,0x334D3169);
+        if(macroWorkspaceTab==2){skyBlockGuideDraw(g,boxX,boxY,boxW,boxH,paneX,paneY,paneW,paneH);pose.popMatrix();return;}
+        if(macroWorkspaceTab==3){schematicGuideDraw(g,boxX,boxY,boxW,boxH,paneX,paneY,paneW,paneH);pose.popMatrix();return;}
         var library=com.lovenote.Lovenote.modules == null ? null :
             com.lovenote.Lovenote.modules.get(com.lovenote.module.impl.MacroLibrary.class);
         var presets=library==null?java.util.List.<com.lovenote.module.impl.MacroLibrary.Preset>of():library.presets();
@@ -389,12 +404,11 @@ public class LovenoteModulesScreen extends TabScreen {
         for(int row=macroGuideScroll;row<indices.size()&&row<macroGuideScroll+rows;row++) {
             int i=indices.get(row),yy=paneY+7+(row-macroGuideScroll)*rowH;
             boolean selected=macroLibraryMode?i==macroTemplateSelected:i==macroGuideSelected;
-            if(selected) macroGlass(g,paneX+5,yy-1,paneW-10,rowH-3,5,
-                0xCD372146,0x77B98BCD);
+            if(selected) DrainerSkin.control(g,paneX+5,yy-1,paneW-10,rowH-3,true);
             else fill(g,paneX+12,yy+rowH-2,paneX+paneW-12,yy+rowH-1,0x22493661);
             String name=macroLibraryMode?presets.get(i).name():guides.get(i).name();
             while(name.length()>4&&font.width(name)>paneW-28)name=name.substring(0,name.length()-2);
-            txt(g,name,paneX+12,yy+7,selected?0xFFFFE9FA:0xFFCEBADF);
+            txt(g,name,paneX+13,yy+7,selected?DrainerSkin.TEXT:DrainerSkin.SUBTEXT);
             macroGuideHits.add(new int[]{paneX+5,yy-1,paneW-10,rowH-3,macroLibraryMode?-100-i:i});
         }
 
@@ -408,12 +422,22 @@ public class LovenoteModulesScreen extends TabScreen {
             var entry=presets.get(macroTemplateSelected);
             String name=entry.name();
             while(name.length()>5&&font.width(name)>maxWidth)name=name.substring(0,name.length()-2);
-            txtS(g,name,tx,paneY+14,0xFFFFD9F5);
+            txtS(g,name,tx,paneY+14,DrainerSkin.TEXT);
             txt(g,entry.saved()?"SAVED RECORDING":entry.group().toUpperCase(java.util.Locale.ROOT),
                 tx,paneY+34,0xFFC79BDD);
             fill(g,tx,paneY+48,tx+maxWidth,paneY+49,0x8055386C);
-            macroDetail(g,entry.detail(),tx,paneY+58,maxWidth,2);
+            macroDetail(g,entry.detail(),tx,paneY+58,maxWidth,3);
+            txt(g,""+library.durationTicks(entry.name())+" ticks  /  "+library.selectedSlot(),
+                tx,paneY+108,0xFFB59AC7);
             int loadY=paneY+paneH-99;
+            int actionY=loadY-30;
+            int half=(maxWidth-6)/2;
+            macroGlass(g,tx,actionY,half,24,7,0xB74E295F,0x6FBB80D6);
+            txt(g,"Play & close",tx+8,actionY+7,0xFFFFE8FA);
+            macroGuideHits.add(new int[]{tx,actionY,half,24,-9});
+            macroGlass(g,tx+half+6,actionY,maxWidth-half-6,24,7,0xB72B263D,0x6F9B7BAE);
+            txt(g,"Record & close",tx+half+13,actionY+7,0xFFFFE8FA);
+            macroGuideHits.add(new int[]{tx+half+6,actionY,maxWidth-half-6,24,-10});
             macroGlass(g,tx,loadY,maxWidth,24,8,0xBB603471,0x77D69DEE);
             txt(g,"Load into recorder",tx+10,loadY+7,0xFFFFE9FD);
             macroGuideHits.add(new int[]{tx,loadY,maxWidth,24,-5});
@@ -430,13 +454,13 @@ public class LovenoteModulesScreen extends TabScreen {
                 txt(g,"Delete saved",tx,nameY+50,0xFFFFA9C1);
                 macroGuideHits.add(new int[]{tx,nameY+47,maxWidth,17,-8});
             }
-            if(!macroFeedback.isEmpty())txt(g,macroFeedback,boxX+17,boxY+boxH-10,0xFFCFB3E8);
+            if(!macroFeedback.isEmpty())txt(g,macroFeedback,boxX+17,boxY+boxH-10,DrainerSkin.SUBTEXT);
         }else if(!guides.isEmpty()) {
             var entry=guides.get(Math.max(0,Math.min(guides.size()-1,macroGuideSelected)));
             String name=entry.name();
             while(name.length()>5&&font.width(name)>maxWidth)name=name.substring(0,name.length()-2);
-            txtS(g,name,tx,paneY+13,0xFFFFCEE9);
-            txt(g,entry.group().toUpperCase(java.util.Locale.ROOT),tx,paneY+33,0xFFC39ADB);
+            txtS(g,name,tx,paneY+13,DrainerSkin.TEXT);
+            txt(g,entry.group().toUpperCase(java.util.Locale.ROOT),tx,paneY+33,DrainerSkin.accentText());
             fill(g,tx,paneY+49,tx+maxWidth,paneY+50,0x8055386C);
             int yy=paneY+58;
             yy=macroTextBlock(g,"WHAT IT DOES",entry.what(),tx,yy,maxWidth);
@@ -448,31 +472,146 @@ public class LovenoteModulesScreen extends TabScreen {
         pose.popMatrix();
     }
 
+    private void skyBlockGuideDraw(GuiGraphicsExtractor g,int boxX,int boxY,int boxW,int boxH,int paneX,int paneY,int paneW,int paneH){
+        var coach=com.lovenote.Lovenote.modules==null?null:com.lovenote.Lovenote.modules.get(com.lovenote.module.impl.SkyBlockCoach.class);
+        if(coach==null)return;
+        String[] tracks={"START","LEVELS","GARDEN","MINING","COMBAT","COINS"};
+        for(int i=0;i<tracks.length;i++){
+            int yy=paneY+7+i*34;
+            boolean active=coach.track().equals(tracks[i]);
+            macroGlass(g,paneX+7,yy,paneW-14,29,6,active?0xB04F2A64:0x8830203E,active?0xA0AB80CD:0x3D55426F);
+            txt(g,tracks[i],paneX+17,yy+9,active?0xFFFFECFF:DrainerSkin.SUBTEXT);
+            macroGuideHits.add(new int[]{paneX+7,yy,paneW-14,29,-50-i});
+        }
+        int detailX=paneX+paneW+10,detailW=boxX+boxW-15-detailX;
+        macroGlass(g,detailX,paneY,detailW,paneH,8,0xD3171124,0x4B503477);
+        int tx=detailX+11, mw=detailW-22;
+        var goal=coach.current();
+        txt(g,"OBJECTIVE  "+coach.completedTrack()+" / "+coach.trackCount(),tx,paneY+11,DrainerSkin.accentText());
+        macroDetail(g,goal.title(),tx,paneY+31,mw,2);
+        txt(g,"WHAT TO DO",tx,paneY+61,DrainerSkin.accentText());
+        macroDetail(g,goal.action(),tx,paneY+76,mw,4);
+        txt(g,"WHY THIS HELPS",tx,paneY+132,DrainerSkin.accentText());
+        macroDetail(g,goal.reason(),tx,paneY+146,mw,3);
+        int buttonsY=paneY+paneH-75;
+        int third=Math.max(30,(mw-8)/3);
+        String[] controls={"< Prev",coach.currentDone()?"Undo":"Mark done","Next >"};
+        for(int i=0;i<3;i++){
+            int bx=tx+i*(third+4);
+            macroGlass(g,bx,buttonsY,third,23,6,0xA0452A60,0x5D865DA8);
+            txt(g,controls[i],bx+4,buttonsY+8,0xFFFFE4F8);
+            macroGuideHits.add(new int[]{bx,buttonsY,third,23,-70-i});
+        }
+        String profit=coach.bestMethod()+": "+String.format(java.util.Locale.ROOT,"%,.0f",coach.coinsPerHour())+" net coins/h";
+        macroDetail(g,profit,tx,buttonsY+30,mw,2);
+        txt(g,"Upgrade payback: "+coach.payback(),tx,buttonsY+47,DrainerSkin.MUTED);
+        txt(g,"Enter 5m earnings + upgrade cost in SkyBlockCoach",boxX+17,boxY+boxH-10,DrainerSkin.MUTED);
+    }
+    private void schematicGuideDraw(GuiGraphicsExtractor g,int boxX,int boxY,int boxW,int boxH,int paneX,int paneY,int paneW,int paneH){
+        var assistant=com.lovenote.Lovenote.modules==null?null:com.lovenote.Lovenote.modules.get(com.lovenote.module.impl.SchematicAssist.class);
+        if(assistant==null)return;
+        txt(g,"SCHEMATICS  /  LOCAL FILES",paneX+9,paneY+11,DrainerSkin.accentText());
+        DrainerSkin.control(g,paneX+paneW-59,paneY+28,50,17,false);
+        txt(g,"Refresh",paneX+paneW-54,paneY+33,DrainerSkin.SUBTEXT);
+        macroGuideHits.add(new int[]{paneX+paneW-59,paneY+28,50,17,-84});
+        int visible=Math.max(1,(paneH-78)/29);
+        schematicScroll=Math.max(0,Math.min(schematicScroll,Math.max(0,schematicFiles.size()-visible)));
+        for(int j=schematicScroll;j<schematicFiles.size()&&j<schematicScroll+visible;j++){
+            int yy=paneY+51+(j-schematicScroll)*29;
+            String file=schematicFiles.get(j);
+            macroGlass(g,paneX+6,yy,paneW-12,26,6,j==schematicSelected?0xA64F2862:0x99301F3D,0x474D3A70);
+            while(file.length()>8&&font.width(file)>paneW-25)file=file.substring(0,file.length()-2);
+            txt(g,file,paneX+12,yy+8,DrainerSkin.TEXT);
+            macroGuideHits.add(new int[]{paneX+6,yy,paneW-12,26,-1000-j});
+        }
+        txt(g,schematicFiles.size()+" FILES  /  SCROLL TO BROWSE",paneX+9,paneY+paneH-15,DrainerSkin.MUTED);
+        int detailX=paneX+paneW+10,detailW=boxX+boxW-15-detailX;
+        macroGlass(g,detailX,paneY,detailW,paneH,8,0xD3171124,0x4B503477);
+        int tx=detailX+12,mw=detailW-24;
+        txt(g,"SCHEMATIC ASSIST",tx,paneY+12,DrainerSkin.TEXT);
+        String chosen=schematicFiles.isEmpty()?"No schematics found":schematicFiles.get(Math.min(schematicSelected,schematicFiles.size()-1));
+        macroDetail(g,chosen,tx,paneY+32,mw,2);
+        macroDetail(g,assistant.message(),tx,paneY+60,mw,3);
+        String summary=assistant.loaded()?assistant.total()+" blocks   /   "+assistant.dimensions():"Supports .schem / .litematic / .nbt";
+        macroDetail(g,summary,tx,paneY+105,mw,2);
+        if(assistant.loaded()){
+            if(!schematicMaterialsExpanded){
+                macroDetail(g,assistant.topMaterials(),tx,paneY+122,mw,1);
+                txt(g,"PREVIEW: "+(assistant.wireframeEnabled()?"3D ON":"3D OFF")+"  /  ROT "+assistant.rotation()+" / LAYER "+(assistant.layer()+1),tx,paneY+185,0xFFD4B5ED);
+            } else {
+                int count=Math.min(8,Math.max(0,assistant.materialTypes()-schematicMaterialOffset));
+                for(int i=0;i<count;i++)
+                    txt(g,assistant.materialLine(i+schematicMaterialOffset),tx,paneY+123+i*13,DrainerSkin.SUBTEXT);
+            }
+            if(!schematicMaterialsExpanded){
+                txt(g,"BLOCK "+(assistant.currentIndex()+1)+" / "+assistant.total(),tx,paneY+143,0xFFCEA1E0);
+                macroDetail(g,assistant.nextInstructions(),tx,paneY+156,mw,2);
+            }
+        }
+        int by=paneY+paneH-57,half=(mw-6)/2;
+        int barY=by-75;
+        if(assistant.loaded()){
+            macroGlass(g,tx,barY,mw,20,5,0xAA2C203C,0x76856E99);
+            txt(g,schematicMaterialsExpanded?"MATERIALS LIST  /  PAGE "+(schematicMaterialOffset/8+1):"OPEN COMPLETE MATERIALS LIST",tx+7,barY+6,DrainerSkin.TEXT);
+            macroGuideHits.add(new int[]{tx,barY,mw,20,-86});
+            macroGlass(g,tx,barY+22,half,19,5,0x9C312343,0x608879A5);
+            txt(g,schematicMaterialsExpanded?"Previous 8":"Preview 3D",tx+6,barY+28,0xFFEEDBF9);
+            macroGuideHits.add(new int[]{tx,barY+22,half,19,schematicMaterialsExpanded?-87:-89});
+            macroGlass(g,tx+half+6,barY+22,mw-half-6,19,5,0x9C312343,0x608879A5);
+            txt(g,schematicMaterialsExpanded?"Next 8":"Rotate 90",tx+half+12,barY+28,0xFFEEDBF9);
+            macroGuideHits.add(new int[]{tx+half+6,barY+22,mw-half-6,19,schematicMaterialsExpanded?-88:-90});
+            if(!schematicMaterialsExpanded){
+                txt(g,"Layers - / +  (use module settings for all layers)",tx,barY+52,0xFFBFA9D7);
+                macroGuideHits.add(new int[]{tx,barY+47,half,17,-91});
+                macroGuideHits.add(new int[]{tx+half,barY+47,half,17,-92});
+            }
+        }
+        txt(g,"Copy to Litematica folder",tx,by-17,0xFFBC9FD8);
+        macroGuideHits.add(new int[]{tx,by-23,mw,22,-85});
+        int third=(mw-12)/3;
+        macroGlass(g,tx,by,third,22,6,0x9C63367A,0x678966A4);
+        txt(g,"Load",tx+8,by+7,DrainerSkin.TEXT);
+        macroGuideHits.add(new int[]{tx,by,third,22,-80});
+        macroGlass(g,tx+third+6,by,third,22,6,0x9C35274F,0x678966A4);
+        txt(g,"Set anchor",tx+third+11,by+7,DrainerSkin.TEXT);
+        macroGuideHits.add(new int[]{tx+third+6,by,third,22,-81});
+        macroGlass(g,tx+2*third+12,by,mw-2*third-12,22,6,0x9C3D2438,0x678966A4);
+        txt(g,"Unload",tx+2*third+19,by+7,0xFFFFD5E0);
+        macroGuideHits.add(new int[]{tx+2*third+12,by,mw-2*third-12,22,-93});
+        by+=25;
+        macroGlass(g,tx,by,half,22,6,0x9C35274F,0x678966A4);
+        txt(g,"< -"+assistant.stepSize(),tx+6,by+7,DrainerSkin.TEXT);
+        macroGuideHits.add(new int[]{tx,by,half,22,-82});
+        macroGlass(g,tx+half+6,by,mw-half-6,22,6,0x9C63367A,0x678966A4);
+        txt(g,"+"+assistant.stepSize()+" >",tx+half+11,by+7,DrainerSkin.TEXT);
+        macroGuideHits.add(new int[]{tx+half+6,by,mw-half-6,22,-83});
+        // Refresh is in the sidebar header; no clipped footer action.
+    }
     private void macroDetail(GuiGraphicsExtractor g,String value,int x,int y,int maxWidth,int maxLines) {
         StringBuilder line=new StringBuilder();
         int row=0;
         for(String word:value.split(" ")) {
             String candidate=line.isEmpty()?word:line+" "+word;
             if(font.width(candidate)>maxWidth && !line.isEmpty()) {
-                txt(g,line.toString(),x,y+row*13,0xFFE3D0ED);
+                txt(g,line.toString(),x,y+row*13,DrainerSkin.TEXT);
                 if(++row>=maxLines)return;
                 line=new StringBuilder(word);
             } else line=new StringBuilder(candidate);
         }
-        if(!line.isEmpty() && row<maxLines)txt(g,line.toString(),x,y+row*13,0xFFE3D0ED);
+        if(!line.isEmpty() && row<maxLines)txt(g,line.toString(),x,y+row*13,DrainerSkin.TEXT);
     }
     private int macroTextBlock(GuiGraphicsExtractor g,String label,String value,int x,int y,int maxWidth) {
         if(y >= macroDetailBottom-14) return y;
-        txt(g,label,x,y,0xFFC18BD9);y+=17;
+        txt(g,label,x,y,DrainerSkin.accentText());y+=17;
         StringBuilder line=new StringBuilder();
         for(String word:value.split(" ")) {
             String candidate=line.isEmpty()?word:line+" "+word;
             if(!line.isEmpty() && font.width(candidate)>maxWidth) {
                 if(y >= macroDetailBottom-12)return macroDetailBottom;
-                txt(g,line.toString(),x,y,0xFFE8DAEE);y+=12;line=new StringBuilder(word);
+                txt(g,line.toString(),x,y,DrainerSkin.TEXT);y+=12;line=new StringBuilder(word);
             } else line=new StringBuilder(candidate);
         }
-        if(!line.isEmpty() && y<macroDetailBottom-12){txt(g,line.toString(),x,y,0xFFE8DAEE);y+=12;}
+        if(!line.isEmpty() && y<macroDetailBottom-12){txt(g,line.toString(),x,y,DrainerSkin.TEXT);y+=12;}
         return y+17;
     }
     private boolean saveMacroFromUi() {
@@ -495,6 +634,59 @@ public class LovenoteModulesScreen extends TabScreen {
         for(int[] h:macroGuideHits)if(x>=h[0]&&x<h[0]+h[2]&&y>=h[1]&&y<h[1]+h[3]) {
             int action=h[4];
             if(action==-1){macroGuideOpen=false;macroNameTyping=false;}
+            else if(action==-22){
+                var coach=com.lovenote.Lovenote.modules==null?null:
+                    com.lovenote.Lovenote.modules.get(com.lovenote.module.impl.SkyBlockCoach.class);
+                if(coach!=null){
+                    if(!coach.enabled)coach.setEnabled(true);
+                    com.lovenote.config.LovenoteConfig.save(true);
+                    macroGuideOpen=false;
+                    mc.gui.setScreen(new SkyBlockGuideScreen(this));
+                }
+                return true;
+            }
+            else if(action<=-20&&action>=-23){
+                macroWorkspaceTab=-20-action;macroLibraryMode=macroWorkspaceTab==1;macroGuideScroll=0;
+                if(macroWorkspaceTab==2){
+                    var c=com.lovenote.Lovenote.modules==null?null:com.lovenote.Lovenote.modules.get(com.lovenote.module.impl.SkyBlockCoach.class);
+                    if(c!=null&&!c.enabled)c.setEnabled(true);
+                }
+                macroFeedback="";macroNameTyping=false;macroGuideTyping=false;
+                if(macroWorkspaceTab==3){
+                    var assist=com.lovenote.Lovenote.modules==null?null:com.lovenote.Lovenote.modules.get(com.lovenote.module.impl.SchematicAssist.class);
+                    schematicFiles=assist==null?java.util.List.of():assist.files();
+                    schematicSelected=0;schematicScroll=0;
+                }
+            }
+            else if(action<=-50&&action>=-55){
+                var c=com.lovenote.Lovenote.modules==null?null:com.lovenote.Lovenote.modules.get(com.lovenote.module.impl.SkyBlockCoach.class);
+                if(c!=null){c.setTrack(new String[]{"START","LEVELS","GARDEN","MINING","COMBAT","COINS"}[-50-action]);com.lovenote.config.LovenoteConfig.save(true);}
+            }
+            else if(action<=-70&&action>=-72){
+                var c=com.lovenote.Lovenote.modules==null?null:com.lovenote.Lovenote.modules.get(com.lovenote.module.impl.SkyBlockCoach.class);
+                if(c!=null){if(action==-70)c.advance(-1);else if(action==-71)c.mark(!c.currentDone());else c.advance(1);com.lovenote.config.LovenoteConfig.save(true);}
+            }
+            else if(action<=-80&&action>=-93){
+                var assist=com.lovenote.Lovenote.modules==null?null:com.lovenote.Lovenote.modules.get(com.lovenote.module.impl.SchematicAssist.class);
+                if(assist!=null){
+                    if(action==-80&&!schematicFiles.isEmpty()){assist.load(schematicFiles.get(Math.min(schematicSelected,schematicFiles.size()-1)));schematicMaterialsExpanded=false;schematicMaterialOffset=0;}
+                    else if(action==-81)assist.anchorToPlayer();
+                    else if(action==-82)assist.step(-1);
+                    else if(action==-83)assist.step(1);
+                    else if(action==-84){schematicFiles=assist.files();schematicScroll=0;schematicSelected=0;}
+                    else if(action==-85)assist.exportToLitematica();
+                    else if(action==-86)schematicMaterialsExpanded=!schematicMaterialsExpanded;
+                    else if(action==-87)schematicMaterialOffset=Math.max(0,schematicMaterialOffset-8);
+                    else if(action==-88)schematicMaterialOffset=Math.min(Math.max(0,assist.materialTypes()-1),schematicMaterialOffset+8);
+                    else if(action==-89)assist.togglePreview();
+                    else if(action==-90)assist.rotate();
+                    else if(action==-91)assist.moveLayer(-1);
+                    else if(action==-92)assist.moveLayer(1);
+                    else if(action==-93){assist.unload();schematicMaterialsExpanded=false;schematicMaterialOffset=0;}
+                    com.lovenote.config.LovenoteConfig.save(true);
+                }
+            }
+            else if(action<=-1000){schematicSelected=Math.max(0,Math.min(schematicFiles.size()-1,-1000-action));}
             else if(action==-2){macroLibraryMode=false;macroGuideScroll=0;macroFeedback="";macroNameTyping=false;}
             else if(action==-3){macroLibraryMode=true;macroGuideScroll=0;macroFeedback="";}
             else if(action==-4){macroGuideTyping=true;macroNameTyping=false;}
@@ -506,6 +698,22 @@ public class LovenoteModulesScreen extends TabScreen {
                     macroFeedback=macroTemplateSelected<presets.size() &&
                         library.loadPreset(presets.get(macroTemplateSelected).name())?"LOADED TO SELECTED SLOT":"RECORDER BUSY";
                 }else macroFeedback="LIBRARY UNAVAILABLE";
+            } else if(action==-9 || action==-10){
+                var library=com.lovenote.Lovenote.modules==null?null:
+                    com.lovenote.Lovenote.modules.get(com.lovenote.module.impl.MacroLibrary.class);
+                boolean started=false;
+                if(library!=null){
+                    if(action==-10)started=library.startRecording();
+                    else {
+                        var presets=library.presets();
+                        if(macroTemplateSelected>=0&&macroTemplateSelected<presets.size())
+                            started=library.playPreset(presets.get(macroTemplateSelected).name());
+                    }
+                }
+                if(started){
+                    macroGuideOpen=false;macroGuideTyping=false;macroNameTyping=false;
+                    mc.gui.setScreen(null); // Leave GUI immediately; recorder stops on any open screen.
+                }else macroFeedback="NEED A WORLD / RECORDER BUSY";
             } else if(action==-6){macroNameTyping=true;macroGuideTyping=false;}
             else if(action==-7)saveMacroFromUi();
             else if(action==-8){
@@ -817,6 +1025,10 @@ public class LovenoteModulesScreen extends TabScreen {
     }
 
     private void readLayout() {
+        // V24: honor saved theme and animation controls. Previously these were
+        // reset EVERY frame, making Appearance settings silently ineffective.
+        if (LovenoteMenuConfig.style == null || LovenoteMenuConfig.style.isBlank())
+            LovenoteMenuConfig.style = "Moon";
         float desired = Mth.clamp(LovenoteMenuConfig.menuScale / 100f, 0.2f, 1.1f);
         float fitX = (width - 28f) / Math.max(1, LovenoteMenuConfig.windowWidth);
         float fitY = (height - 28f) / Math.max(1, LovenoteMenuConfig.windowHeight);
@@ -828,12 +1040,18 @@ public class LovenoteModulesScreen extends TabScreen {
         LovenoteMenuConfig.apply();
     }
 
-    private int contentX() { return LovenoteMenuConfig.railRight ? wx + 14 : wx + railW + 14; }
-    // DRainer_STAGE2_THREE_COLUMN: fixed space for settings, even when no module is selected.
+    private int contentX() { return LovenoteMenuConfig.style.equals("Moon") ? wx + 20 : (LovenoteMenuConfig.railRight ? wx + 14 : wx + railW + 14); }
+    // Moon workspace uses its entire width until a module opens a contextual inspector.
     private int premiumGap() { return 12; }
-    private int premiumSettingsW() { return Math.max(180, Math.min(252, (winW - railW - 42) * 40 / 100)); }
-    private int premiumSettingsX() { return wx + winW - 14 - premiumSettingsW(); }
-    private int contentW() { return Math.max(140, premiumSettingsX() - premiumGap() - contentX()); }
+    private int premiumSettingsW() {
+        if (LovenoteMenuConfig.style.equals("Moon")) return Math.min(302, Math.max(205, (int)(winW * 0.39f)));
+        return Math.max(180, Math.min(252, (winW - railW - 42) * 40 / 100));
+    }
+    private int premiumSettingsX() { return wx + winW - (LovenoteMenuConfig.style.equals("Moon") ? 18 : 14) - premiumSettingsW(); }
+    private int contentW() {
+        if (LovenoteMenuConfig.style.equals("Moon")) return winW - 40;
+        return Math.max(140, premiumSettingsX() - premiumGap() - contentX());
+    }
     private int railX() { return LovenoteMenuConfig.railRight ? wx + winW - railW : wx; }
 
     private void clampWindows() {
@@ -869,11 +1087,25 @@ public class LovenoteModulesScreen extends TabScreen {
         int cc = a(c); if ((cc >>> 24) < 12) return;
         if (!com.lovenote.util.ModernText.draw(ctx,s,x,y,cc)) ctx.text(font, s, x, y, cc, true);
     }
+    // Scale only headline text; all existing hitboxes stay in logical UI coordinates.
+    private void txtScaled(GuiGraphicsExtractor ctx, String s, int x, int y, float size, int color) {
+        Matrix3x2fStack matrix = ctx.pose();
+        matrix.pushMatrix();
+        matrix.translate(x, y);
+        matrix.scale(size, size);
+        try { txtS(ctx, s, 0, 0, color); }
+        finally { matrix.popMatrix(); }
+    }
     private void circle(GuiGraphicsExtractor ctx, int cx, int cy, int r, int c) { LovenoteDraw.circle(ctx, cx, cy, r, a(c)); }
 
     private float ease(String key, float target, float durMs) {
-        float v = anim.getOrDefault(key, target);
-        v += (target - v) * (1f - (float) Math.exp(-dt / Math.max(8f, durMs * 0.25f)));
+        // Hover states start unlit, allowing the initial mouse entry to animate.
+        float v = anim.getOrDefault(key, key.startsWith("v24-hover:") ? 0f : target);
+        // Prior hover animation lasted only ~25% of its declared duration,
+        // effectively snapping at 60-144 FPS. Keep hover glass motion visible.
+        float effectiveMs = key.startsWith("v24-hover:") ? Math.max(160f, durMs)
+                : Math.max(16f, durMs * 0.42f);
+        v += (target - v) * (1f - (float) Math.exp(-Math.max(0f, dt) / effectiveMs));
         if (Math.abs(target - v) < 0.004f) v = target;
         anim.put(key, v);
         return v;
@@ -908,9 +1140,11 @@ public class LovenoteModulesScreen extends TabScreen {
     // ---------------------------------------------------------------- settings rows
 
     private void drawSwitch(GuiGraphicsExtractor ctx, int x, int y, float t) {
-        rr(ctx, x, y, 22, 10, 5, LovenotePalette.lerp(LovenotePalette.track(), LovenotePalette.C2, t));
-        if (t > 0.02f) rr(ctx, x + 2, y + 1, 18, 8, 4, LovenotePalette.alpha(LovenotePalette.C2, (int) (255 * t)));
-        rr(ctx, x + 1 + (int) (t * 12), y + 1, 8, 8, 4, 0xFFFFFFFF);
+        rr(ctx, x, y, 24, 11, 6,
+                LovenotePalette.lerp(0x73485371, LovenotePalette.alpha(LovenotePalette.C2, 182), t));
+        rr(ctx, x + 1, y + 1, 22, 9, 5,
+                LovenotePalette.lerp(0xA61D2639, LovenotePalette.alpha(LovenotePalette.C2, 133), t));
+        rr(ctx, x + 2 + Math.round(t * 12), y + 2, 7, 7, 4, 0xFFF7F6FC);
     }
 
     private int chipsHeight(String[] names, int w) {
@@ -1205,8 +1439,11 @@ public class LovenoteModulesScreen extends TabScreen {
         vh = Math.max(120, Math.round(height / gs));
         clampWindows();
 
-        double s = mc.getWindow().getGuiScale();
-        int mx = (int) (mouseX / s), my = (int) (mouseY / s);
+        // renderCustom receives GUI-scaled mouse coordinates already. The scene
+        // is then drawn with gs (our menu zoom), so only divide by gs.
+        // Dividing by Window.getGuiScale() here a second time broke hover hit tests
+        // whenever the game GUI scale was above 1, even though click events worked.
+        int mx = (int) (mouseX / gs), my = (int) (mouseY / gs);
 
         hits.clear();
         pageRects.clear();
@@ -1231,10 +1468,14 @@ public class LovenoteModulesScreen extends TabScreen {
         animating = open < 0.999f;
         ga = eo;
 
-        ctx.fill(0, 0, width, height, LovenotePalette.alpha(0x000000, (int) (130 * eo)));
-        drawDrainerAtmosphere(ctx, eo);
+        ctx.fill(0, 0, width, height, LovenotePalette.alpha(0x000000,
+                (int) ((LovenoteMenuConfig.style.equals("Moon") ? 90 : 130) * eo)));
+        // Moon HUD: deliberate absence of ambient fog and menu confetti.
         for (int i = 0; i < particleCount && i < px.length; i++) {
-            float sp = LovenoteMenuConfig.particleSpeed / 100f;
+            // Frame-rate independent particles: avoid faster animation on high FPS
+            // and giant leaps after backgrounding the client.
+            float sp = LovenoteMenuConfig.particleSpeed / 100f
+                * Math.min(3f, Math.max(0f, dt / 16.6667f));
             px[i] += pvx[i] * sp; py[i] += pvy[i] * sp;
             if (py[i] < 0) { py[i] = height; px[i] = (float) (Math.random() * width); }
             if (px[i] < 0) px[i] = width;
@@ -1261,12 +1502,19 @@ public class LovenoteModulesScreen extends TabScreen {
         if (selected != null) panelModule = selected;
         float panelA = ease("panel", selected != null ? 1f : 0f, 220);
 
-        drawWindow(ctx, mx, my, interactive, corner);
-        if (page != cats.size() + 2) drawPremiumSettings(ctx, mx, my, panelA, corner);
-        drawRail(ctx, mx, my, corner);
-        drawDrainerStage5Ornaments(ctx);
+        // The Moon layout is a different workspace, not a recoloured three-column skin.
+        if (LovenoteMenuConfig.style.equals("Moon")) {
+            drawMoonWorkspace(ctx, mx, my, interactive);
+            if (selected != null && page != cats.size() + 2 && page != cats.size() + 1)
+                drawPremiumSettings(ctx, mx, my, panelA, 6);
+        } else {
+            drawWindow(ctx, mx, my, interactive, corner);
+            if (page != cats.size() + 2) drawPremiumSettings(ctx, mx, my, panelA, corner);
+            drawRail(ctx, mx, my, corner);
+            drawDrainerStage5Ornaments(ctx);
+        }
         if (page == cats.size() + 2 && configExpanded) drawConfigExpanded(ctx);
-        drawRipples(ctx);
+        // No decorative ripples in the Moon replacement.
 
         if (listening != null) txtS(ctx, "press a key to bind " + listening.title() + "   (esc = clear)", wx + winW / 2 - 100, wy + winH + 8, 0xFFFFD27A);
         if (tooltip != null) {
@@ -1457,13 +1705,328 @@ public class LovenoteModulesScreen extends TabScreen {
         fill(ctx, x + w - inset - len, y + h - 6, x + w - inset, y + h - 5, accent);
         fill(ctx, x + w - 6, y + h - inset - len, x + w - 5, y + h - inset, accent);
     }
+
+    // Premium Drainer x Moon ambient background: time-based and draw-only.
+    // Tiny fixed-size shapes, no particle arrays or per-frame allocations.
+    // Lightweight ambience: bounded, low-overdraw shapes. No per-card particles.
+    private void drawMoonAtmosphere(GuiGraphicsExtractor ctx) {
+        final int x = wx, y = wy, w = winW, h = winH;
+        if (w < 100 || h < 100) return;
+        final double t = System.nanoTime() * 1.0e-9;
+        ctx.enableScissor(x + 2, y + 2, x + w - 2, y + h - 2);
+        // 10 broad tonal bands instead of 42 per-frame full-width draw calls.
+        for (int i = 0; i < 10; i++) {
+            int yy = y + h * i / 10;
+            int y2 = y + h * (i + 1) / 10;
+            ctx.fill(x + 2, yy, x + w - 2, y2,
+                    LovenotePalette.alpha(i < 5 ? 0x17132A : 0x24162E, 12));
+        }
+        // Two slowly drifting, subtle pools (four fills total).
+        int gx = x + (int)(w * (0.74 + 0.035 * Math.sin(t * 0.15)));
+        int gy = y + (int)(h * (0.30 + 0.035 * Math.cos(t * 0.14)));
+        for (int i = 2; i >= 1; i--) {
+            int rw = 55 * i, rh = 34 * i;
+            ctx.fill(Math.max(x + 2, gx - rw), Math.max(y + 2, gy - rh),
+                     Math.min(x + w - 2, gx + rw), Math.min(y + h - 2, gy + rh),
+                     LovenotePalette.alpha(0x7F4CC8, 3));
+        }
+        // 10 tiny ambient points; all positions deterministic.
+        for (int i = 0; i < 10; i++) {
+            double u = (i * 0.61803398875) % 1.0;
+            double v = ((i * 0.41421356237) + t * 0.002) % 1.0;
+            int px = x + 9 + (int)(u * (w - 18));
+            int py = y + 8 + (int)(v * (h - 16));
+            ctx.fill(px, py, px + 1, py + 1,
+                    LovenotePalette.alpha(0xC9ADE9, 18));
+        }
+        ctx.disableScissor();
+    }
+
+    // ---------------------------------------------------------------- Moon workspace V2
+    // Horizontal navigation + two-column cards + settings drawer. No reserved sidebar
+    // or blank third column. Existing module/event/setting handlers are reused.
+    // Moon-inspired cockpit: stronger hierarchy and a permanent, compact navigation rail.
+    // V24 BENTO CONTROL CENTER: responsive workspace and accurate hit regions.
+    // Uses the existing module rows, search, settings panel and macro actions.
+    // The renderer never adds or enables a module; it is deliberately UI-only.
+    private void drawMoonWorkspace(GuiGraphicsExtractor ctx, int mx, int my, boolean interactive) {
+        final int left = wx + 14, right = wx + winW - 14;
+        final int ink = 0xFFF4F2FC, sub = 0xFFB2B7C9, muted = 0xFF838AA2;
+        final int accent = LovenotePalette.C2;
+        // Inset midnight-glass chassis; avoid the thick violet outline of V22.
+        rr(ctx, wx - 2, wy - 2, winW + 4, winH + 4, 18, 0x3E876BBD);
+        // Respect saved opacity without making text unreadable over bright terrain.
+        int paneAlpha = Mth.clamp((int) (208f * LovenoteMenuConfig.opacity / 100f), 150, 230);
+        rr(ctx, wx, wy, winW, winH, 16, LovenotePalette.alpha(DrainerSkin.WINDOW, paneAlpha));
+        drawMoonAtmosphere(ctx);
+        fill(ctx, wx + 24, wy + 2, wx + winW - 24, wy + 3, LovenotePalette.alpha(accent, 67));
+        // A thin sweeping accent in the title area; motion without a fullscreen shader.
+        int headerSweepX = wx + 28 + (int)((winW - 65) *
+                (0.5 + 0.5 * Math.sin(System.nanoTime() * 1e-9 * 0.21)));
+        fill(ctx, headerSweepX, wy + 2, headerSweepX + 14, wy + 3,
+                LovenotePalette.alpha(LovenotePalette.C3, 68));
+        // A slow, narrow reflected highlight avoids constant animated redraw geometry.
+        int sheenX = wx + 28 + (int) ((winW - 60) * (0.5 + 0.5 * Math.sin(System.nanoTime() * 1e-9 * 0.28)));
+        fill(ctx, sheenX, wy + 2, sheenX + 18, wy + 3, 0x36FFFFFF);
+        fill(ctx, left, wy + 67, right, wy + 68, 0x294E5E82);
+
+        // Identity and state in a separated top bar.
+        rr(ctx, left + 1, wy + 13, 42, 42, 14, 0x573E2F63);
+        rr(ctx, left + 4, wy + 16, 36, 36, 11, 0xAE18152B);
+        txtS(ctx, "D", left + 18, wy + 29, 0xFFF4DDFF);
+        fill(ctx, left + 8, wy + 52, left + 35, wy + 53, 0x9EAA82ED);
+        txtScaled(ctx, "DRAINER", left + 57, wy + 16, 1.35f, ink);
+        txt(ctx, "CLIENT DASHBOARD   /   26.2", left + 57, wy + 38, muted);
+
+        final int closeX = right - 29;
+        rr(ctx, closeX, wy + 19, 28, 27, 9, 0x752D3043);
+        txt(ctx, "x", closeX + 10, wy + 29, 0xFFEADFF3);
+        addHit(closeX, wy + 19, 28, 27, K_CLOSE, null, null, 0);
+        final int activeCount = selectedCount();
+        final String activeLabel = activeCount + " ENABLED";
+        final int pillW = Math.max(79, font.width(activeLabel) + 24);
+        final int pillX = closeX - pillW - 10;
+        rr(ctx, pillX, wy + 20, pillW, 25, 11, 0x88352A51);
+        float badgePulse = (float)(0.5 + 0.5 * Math.sin(System.nanoTime() * 1e-9 * 1.8));
+        circle(ctx, pillX + 12, wy + 32, 4,
+                LovenotePalette.alpha(accent, activeCount > 0 ? 24 + Math.round(18 * badgePulse) : 13));
+        circle(ctx, pillX + 12, wy + 32, 2,
+                activeCount > 0 ? LovenotePalette.alpha(LovenotePalette.C3, 195 + Math.round(44 * badgePulse)) : 0xFF63677B);
+        txt(ctx, activeLabel, pillX + 21, wy + 28, 0xFFE0D1F5);
+
+        // Permanent left navigation. Fixed spacing prevents overlap in compact mode.
+        final int navX = left, navY = wy + 81, navW = Math.min(148, Math.max(124, winW / 6 + 10));
+        final int navBottom = wy + winH - 63;
+        rr(ctx, navX, navY, navW, Math.max(110, navBottom - navY), 15, 0xB0131928);
+        fill(ctx, navX + navW - 1, navY + 18, navX + navW, navBottom - 18, 0x225E6684);
+        txtS(ctx, "WORKSPACES", navX + 13, navY + 13, 0xFF948FB3);
+        int navTop = navY + 34;
+        int navH = Math.max(18, Math.min(29, (navBottom - navTop - 7) / Math.max(1, pages())));
+        // Selected tab glides between rows rather than changing instantly.
+        float targetRail = navTop + page * navH;
+        if (Float.isNaN(motionRailY)) motionRailY = targetRail;
+        motionRailY += (targetRail - motionRailY) * (1f - (float)Math.exp(-Math.max(0f, dt) / 105f));
+        if (Math.abs(targetRail - motionRailY) < 0.35f) motionRailY = targetRail;
+        for (int i = 0; i < pages(); i++) {
+            String label = pageLabel(i);
+            int yy = navTop + i * navH;
+            int rowHeight = Math.max(17, navH - 3);
+            boolean active = i == page && searchText.trim().isEmpty();
+            boolean hover = interactive && mx >= navX + 6 && mx < navX + navW - 6
+                    && my >= yy && my < yy + rowHeight;
+            float a = ease("v24-rail-" + i, active || hover ? 1f : 0f, 165);
+            int alpha = Math.min(194, 7 + Math.round(140 * a));
+            rr(ctx, navX + 6, yy, navW - 12, rowHeight, 9, (alpha << 24) | 0x32244D);
+            if (hover && !active) fill(ctx, navX + 14, yy + 2, navX + navW - 14, yy + 3, 0x1DFFFFFF);
+            // The sliding selector is drawn once below, above the nav rows.
+            int glyphColor = active ? 0xFFE7D4FF : hover ? 0xFFD2C2E8 : 0xFF9799AC;
+            // A quiet numeric index reads cleaner than chopped category initials.
+            String glyph = i < 9 ? "0" + (i + 1) : Integer.toString(i + 1);
+            txt(ctx, glyph, navX + 16, yy + Math.max(5, (rowHeight - 9) / 2), glyphColor);
+            txt(ctx, trim(label, navW - 62), navX + 40,
+                    yy + Math.max(5, (rowHeight - 9) / 2), active ? ink : hover ? sub : 0xFFC3C9D8);
+            pageRects.add(new int[]{navX + 6, yy, navW - 12, rowHeight, i});
+        }
+        // Draw on top of the animated rows, but leave logical hitboxes fixed.
+        if (searchText.trim().isEmpty()) {
+            int ny = Math.round(motionRailY);
+            int h = Math.max(7, navH - 13);
+            int glowAlpha = 28 + (int)(9 * (0.5 + 0.5 * Math.sin(System.nanoTime() * 1e-9 * 1.5)));
+            rr(ctx, navX + 6, ny + 3, 3, Math.max(12, navH - 7), 2,
+                    LovenotePalette.alpha(accent, glowAlpha));
+            rr(ctx, navX + 7, ny + 6, 2, h, 2, LovenotePalette.alpha(accent, 190));
+        }
+
+        final int cx = navX + navW + 15;
+        final int contentRight = right;
+        final int contentW = Math.max(120, contentRight - cx);
+        final int headY = wy + 82;
+        final String query = searchText.trim().toLowerCase(java.util.Locale.ROOT);
+        final String title = query.isEmpty() ? pageLabel(page) : "Search results";
+        final int count = visibleModules(query).size();
+        // V25.6: compact floating toolbar, instead of an oversized box within a box.
+        // The 26.2 screen coordinates and interactive search hitbox remain unchanged.
+        rr(ctx, cx, headY + 3, contentW, 53, 15, 0x44101320);
+        rr(ctx, cx + 1, headY + 1, contentW - 2, 53, 14, 0x8E171D2C);
+        fill(ctx, cx + 14, headY + 2, cx + contentW - 14, headY + 3, 0x20FFFFFF);
+        rr(ctx, cx + 14, headY + 14, 3, 20, 2, LovenotePalette.alpha(accent, 214));
+        txtS(ctx, trim(title.toUpperCase(java.util.Locale.ROOT),
+                Math.max(45, contentW - Math.max(115, Math.min(226, contentW / 3)) - 70)),
+                cx + 27, headY + 11, ink);
+        txt(ctx, count + " MODULES   \u2022   " + activeCount + " ACTIVE", cx + 27, headY + 34, muted);
+
+        final int searchW = Math.max(115, Math.min(226, contentW / 3));
+        final int searchX = contentRight - searchW - 10;
+        final int searchY = headY + 12;
+        float searchGlow = ease("v254-search-focus", searchFocused ? 1f : 0f, 190);
+        rr(ctx, searchX, searchY, searchW, 30, 11,
+                LovenotePalette.lerp(0x42576288, LovenotePalette.alpha(accent, 175), searchGlow));
+        rr(ctx, searchX + 1, searchY + 1, searchW - 2, 28, 10, 0xBA161D2C);
+        fill(ctx, searchX + 10, searchY + 2, searchX + searchW - 10, searchY + 3, 0x16FFFFFF);
+        String searchValue = searchText.isEmpty() && !searchFocused ? "Search modules..." : trim(searchText, searchW - 29);
+        txt(ctx, searchValue, searchX + 11, searchY + 11, searchText.isEmpty() ? muted : ink);
+        if (searchFocused && (System.currentTimeMillis() / 550L) % 2 == 0) {
+            int caretX = Math.min(searchX + searchW - 12, searchX + 11 + font.width(trim(searchText, searchW - 29)));
+            fill(ctx, caretX, searchY + 8, caretX + 1, searchY + 20, ink);
+        }
+        addHit(searchX, searchY, searchW, 30, K_SEARCH, null, null, 0);
+
+        moonContentTop = headY + 66;
+        final int bottom = wy + winH - 67;
+        if (moonContentTop < bottom) {
+            int maxRight = selected == null ? contentRight : Math.min(contentRight, premiumSettingsX() - 13);
+            int areaW = Math.max(120, maxRight - cx);
+            if (!query.isEmpty() || !isSpecial(page) || page == cats.size())
+                renderMoonTiles(ctx, mx, my, cx, moonContentTop, areaW, bottom, query, interactive);
+            else if (page == cats.size() + 1)
+                drawAppearanceWorkspace(ctx, cx, moonContentTop, areaW, bottom);
+            else if (page == cats.size() + 2)
+                drawConfigHub(ctx, cx, moonContentTop, areaW, bottom);
+        }
+
+        // Pinned workflow buttons preserve the old K_GUIDE/K_EDITOR actions.
+        fill(ctx, left, wy + winH - 58, right, wy + winH - 57, 0x414E536B);
+        int dockY = wy + winH - 46;
+        float guideHover = ease("v254-guide", interactive && mx >= left && mx < left + 111
+                && my >= dockY && my < dockY + 29 ? 1f : 0f, 160);
+        rr(ctx, left, dockY, 111, 29, 11,
+                LovenotePalette.lerp(0x9F232B3E, 0xCC363252, guideHover));
+        txtS(ctx, "Macro Guide", left + 13, dockY + 12, 0xFFE4DDF1);
+        addHit(left, dockY, 111, 29, K_GUIDE, null, null, 0);
+        float schematicHover = ease("v254-schems", interactive && mx >= left + 119 && mx < left + 226
+                && my >= dockY && my < dockY + 29 ? 1f : 0f, 160);
+        rr(ctx, left + 119, dockY, 107, 29, 11,
+                LovenotePalette.lerp(0xA6383055, 0xD14F3D72, schematicHover));
+        txtS(ctx, "Schematics", left + 130, dockY + 12, 0xFFF3E9FF);
+        addHit(left + 119, dockY, 107, 29, K_GUIDE, null, null, 3);
+        float hudHover = ease("v254-hud", interactive && mx >= left + 234 && mx < left + 333
+                && my >= dockY && my < dockY + 29 ? 1f : 0f, 160);
+        rr(ctx, left + 234, dockY, 99, 29, 11,
+                LovenotePalette.lerp(0x9F232B3E, 0xCC363252, hudHover));
+        txtS(ctx, "HUD Editor", left + 246, dockY + 12, 0xFFE4DDF1);
+        addHit(left + 234, dockY, 99, 29, K_EDITOR, null, null, 0);
+        String stats = mc.getFps() + " FPS  /  " + activeCount + " ON";
+        if (right - font.width(stats) > left + 345)
+            txt(ctx, stats, right - font.width(stats) - 2, dockY + 12, muted);
+    }
+
+    private int selectedCount() {
+        int n = 0;
+        for (Row row : allModules) if (row.active()) n++;
+        return n;
+    }
+
+    private static boolean v24IsUnported(Row m) {
+        return m instanceof LRow row && row.m instanceof com.lovenote.module.UnportedModule;
+    }
+
+    /** Stable tiny labels for the compact card chips; no textures or runtime allocations beyond the text itself. */
+    private static String shortModuleMark(String title) {
+        if (title == null || title.isEmpty()) return "?";
+        char first = Character.toUpperCase(title.charAt(0));
+        for (int i = 1; i < title.length(); i++) {
+            char c = title.charAt(i);
+            if ((Character.isUpperCase(c) && Character.isLowerCase(title.charAt(i - 1)))
+                    || (c != ' ' && title.charAt(i - 1) == ' ')) {
+                return "" + first + Character.toUpperCase(c);
+            }
+        }
+        return title.length() > 1 ? ("" + first + Character.toUpperCase(title.charAt(1)))
+                : String.valueOf(first);
+    }
+
+    private void renderMoonTiles(GuiGraphicsExtractor ctx, int mx, int my,
+                                 int left, int top, int areaW, int bottom,
+                                 String q, boolean interactive) {
+        List<Row> list = visibleModules(q);
+        // Never squeeze controls into tiny three-column cards. Responsive 1/2/3 columns.
+        final int gap = 7, rowH = 49;
+        final int columns = selected == null && areaW >= 720 ? 3
+                : selected == null && areaW >= 415 ? 2 : 1;
+        final int tileW = Math.max(100, (areaW - gap * (columns - 1)) / columns);
+        final int rows = (list.size() + columns - 1) / columns;
+        maxScroll = Math.max(0, rows * (rowH + gap) - gap - (bottom - top));
+        scrollTarget = Mth.clamp(scrollTarget, 0, maxScroll);
+        scrollShown += (scrollTarget - scrollShown) * (1f - (float) Math.exp(-dt / 58f));
+        if (Math.abs(scrollShown - scrollTarget) < 0.2f) scrollShown = scrollTarget;
+
+        ctx.enableScissor(left - 1, top - 1, left + areaW + 2, bottom);
+        for (int i = 0; i < list.size(); i++) {
+            Row m = list.get(i);
+            int x = left + (i % columns) * (tileW + gap);
+            int y = top + (i / columns) * (rowH + gap) - Math.round(scrollShown);
+            if (y + rowH <= top || y >= bottom) continue;
+            boolean active = m.active(), focus = selected == m, unported = v24IsUnported(m);
+            boolean hover = interactive && mx >= x && mx < x + tileW && my >= y
+                    && my < y + rowH && my >= top && my < bottom;
+            float t = ease("v24-hover:" + m.title(), hover ? 1f : 0f, 145);
+            float on = ease("v24-on:" + m.title(), active ? 1f : 0f, 170);
+            // V25.7.2: keep geometry fixed. Fading colours looks smoother than
+            // integer-rounded spatial lift at variable FPS, and hitboxes never drift.
+            int yy = y;
+            // One rounded card instead of 4-8 stacked rounded glow layers.
+            // Each rounded call expands to many GuiGraphicsExtractor fill calls.
+            float intensity = Math.max(t, active ? 0.28f : 0f);
+            int cardColor = LovenotePalette.lerp(
+                    active ? 0xE021273C : 0xDC192131, 0xED302847, t);
+            rr(ctx, x, yy, tileW, rowH, 10, cardColor);
+            // Two inexpensive single-fill highlights, faded over actual frame dt.
+            if (intensity > 0.02f) {
+                int topAlpha = Math.round(25f + 120f * intensity);
+                fill(ctx, x + 14, yy + 1, x + tileW - 14, yy + 2,
+                        LovenotePalette.alpha(LovenotePalette.C3, topAlpha));
+                fill(ctx, x + 8, yy + 10, x + 10, yy + rowH - 10,
+                        LovenotePalette.alpha(LovenotePalette.C2,
+                                Math.round(160f * intensity)));
+            }
+            // Small stable monogram: one rounded fill, no extra shadow/reflection stack.
+            rr(ctx, x + 13, yy + 11, 28, 27, 8,
+                    LovenotePalette.lerp(0x92293246,
+                            LovenotePalette.alpha(LovenotePalette.C2, 118), t));
+            String glyph = shortModuleMark(m.title());
+            txt(ctx, glyph, x + 27 - font.width(glyph) / 2, yy + 20,
+                    active ? 0xFFFFFFFF : 0xFFDDE4F5);
+            final int textX = x + 50;
+            int titleSpace = Math.max(40, tileW - 104);
+            txtS(ctx, trim(m.title(), titleSpace), textX, yy + 10,
+                    active ? 0xFFFFFFFF : 0xFFF3F5FC);
+            String description = unported ? "NOT PORTED TO 26.2" : m.description();
+            txt(ctx, trim(description, Math.max(35, tileW - 106)), textX, yy + 29,
+                    unported ? 0xFFFFC5A1 : 0xFFADBBD2);
+            if (unported) {
+                txt(ctx, "!", x + tileW - 20, yy + 12, 0xFFE9AC92);
+            } else {
+                int swX = x + tileW - 36, swY = yy + 11;
+                // Cheap card switch: 3 fills instead of nested rounded shapes.
+                fill(ctx, swX, swY + 1, swX + 24, swY + 11,
+                        LovenotePalette.lerp(0xA33C455C, LovenotePalette.C2, on));
+                fill(ctx, swX + 1, swY + 2, swX + 23, swY + 10,
+                        LovenotePalette.lerp(0xCD222A3B, LovenotePalette.C2, on));
+                int thumbX = swX + 3 + Math.round(on * 11f);
+                fill(ctx, thumbX, swY + 3, thumbX + 6, swY + 9, 0xFFF3F0FF);
+            }
+            if (y >= top && y + rowH <= bottom) {
+                addHit(x, y, tileW, rowH, K_CARD, m, null, 0);
+                if (!unported) addHit(x + tileW - 39, y + 6, 35, 20, K_SWITCH, m, null, 0);
+            }
+        }
+        ctx.disableScissor();
+        scrollbar(ctx, left + areaW + 4, top, bottom, scrollShown, maxScroll);
+        if (list.isEmpty()) {
+            rr(ctx, left, top, areaW, Math.min(bottom - top, 112), 11, 0xCC1A2130);
+            txtS(ctx, "NO MATCHES", left + 17, top + 19, 0xFFECE5FB);
+            txt(ctx, "Try a different module name or category", left + 17, top + 44, 0xFF929BB1);
+        }
+    }
+
     private void drawWindow(GuiGraphicsExtractor ctx, int mx, int my, boolean interactive, int corner) {
-        int styleA = LovenoteMenuConfig.style.equals("Premium") ? 0xE8 : LovenoteMenuConfig.style.equals("Classic") ? 0xF8 : LovenoteMenuConfig.style.equals("Liquid") ? 0xCC : 0x8C;
+        int styleA = LovenoteMenuConfig.style.equals("Moon") ? 0xF4 : LovenoteMenuConfig.style.equals("Premium") ? 0xE8 : LovenoteMenuConfig.style.equals("Classic") ? 0xF8 : LovenoteMenuConfig.style.equals("Liquid") ? 0xCC : 0x8C;
         int alpha = (int) (styleA * LovenoteMenuConfig.opacity / 100.0);
 
         for (int i = LovenoteMenuConfig.glow; i >= 1; i--) rr(ctx, wx - i, wy - i, winW + i * 2, winH + i * 2, corner + 2, LovenotePalette.alpha(LovenotePalette.C2, 5));
         if (LovenoteMenuConfig.shadow) for (int i = 4; i >= 1; i--) rr(ctx, wx - i, wy + 2, winW + i * 2, winH + i * 2, corner + 2, LovenotePalette.alpha(0x000000, 8));
-        rr(ctx, wx - 1, wy - 1, winW + 2, winH + 2, corner + 1, LovenotePalette.alpha(LovenotePalette.C2, 64));
+        rr(ctx, wx - 1, wy - 1, winW + 2, winH + 2, corner + 1,
+                LovenoteMenuConfig.style.equals("Moon") ? 0x80515865 : LovenotePalette.alpha(LovenotePalette.C2, 64));
         rr(ctx, wx, wy, winW, winH, corner, LovenotePalette.alpha(LovenotePalette.bg(), alpha));
 
         // Premium glass: restrained inner chrome rim and violet highlights.
@@ -1502,6 +2065,12 @@ public class LovenoteModulesScreen extends TabScreen {
         String q = searchText.trim().toLowerCase();
         boolean moduleGrid = !q.isEmpty() || !isSpecial(page) || page == cats.size();
 
+        // Moon-style type-led header replaces the large illustrated client logo.
+        if (LovenoteMenuConfig.style.equals("Moon")) {
+            txtS(ctx, "drainer", cx, wy + 30, LovenotePalette.text());
+            txt(ctx, "CLIENT  /  MODULES", cx, wy + 48, LovenotePalette.faint());
+            fill(ctx, cx, wy + 65, cx + cw, wy + 66, 0x53474A56);
+        }
         // DRAINER: centred animated logo, above the search bar.
         if (LovenoteMenuConfig.logo) {
             double headerLogoAngle = System.nanoTime() / 1000000000.0
@@ -1542,10 +2111,10 @@ public class LovenoteModulesScreen extends TabScreen {
             fill(ctx, bx + 4 - i, wy + 15 + i, bx + 5 - i, wy + 16 + i, closeColor);
         }
         addHit(bx - 3, wy + 10, 14, 14, K_CLOSE, null, null, 0);
-        rr(ctx, bx - 105, wy + 10, 91, 17, 5, LovenotePalette.alpha(LovenotePalette.chip(), 215));
+        rr(ctx, bx - 105, wy + 10, 91, 17, 4, LovenotePalette.alpha(LovenotePalette.chip(), 215));
         txt(ctx, "HUD Editor", bx - 97, wy + 14, LovenotePalette.text());
         addHit(bx - 105, wy + 10, 91, 17, K_EDITOR, null, null, 0);
-        rr(ctx, bx - 202, wy + 10, 90, 17, 5, LovenotePalette.alpha(LovenotePalette.chip(), 215));
+        rr(ctx, bx - 202, wy + 10, 90, 17, 4, LovenotePalette.alpha(LovenotePalette.chip(), 215));
         txt(ctx, "Macro Guide", bx - 195, wy + 14, LovenotePalette.text());
         addHit(bx - 202, wy + 10, 90, 17, K_GUIDE, null, null, 0);
 
@@ -1598,9 +2167,56 @@ public class LovenoteModulesScreen extends TabScreen {
         return out;
     }
 
+    /** Moon-inspired vertical list, deliberately lighter than the old glass card grid.
+     *  Uses existing Row toggles and hit kinds, so saved modules/settings survive. */
+    private void renderMoonRows(GuiGraphicsExtractor ctx, int mx, int my,
+                                int cx, int top, int cw, int bottom,
+                                String q, boolean interactive) {
+        List<Row> list = visibleModules(q);
+        final int rowH = 34, gap = 3;
+        maxScroll = Math.max(0, list.size() * (rowH + gap) - (bottom - top));
+        scrollTarget = Mth.clamp(scrollTarget, 0, maxScroll);
+        scrollShown += (scrollTarget - scrollShown) * (1f - (float) Math.exp(-dt / 45f));
+        if (Math.abs(scrollTarget - scrollShown) < 0.2f) scrollShown = scrollTarget;
+        ctx.enableScissor(cx - 2, top - 1, cx + cw + 3, bottom);
+        for (int i = 0; i < list.size(); i++) {
+            Row m = list.get(i);
+            int y = top + i * (rowH + gap) - Math.round(scrollShown);
+            if (y + rowH < top || y > bottom) continue;
+            boolean hovered = interactive && mx >= cx && mx < cx + cw
+                    && my >= y && my < y + rowH && my >= top && my < bottom;
+            boolean active = m.active();
+            boolean focused = selected == m;
+            int bg = focused ? 0xFF28232F : hovered ? 0xFF24262D : 0xFF1A1C21;
+            rr(ctx, cx, y, cw, rowH, 4, bg);
+            if (active) fill(ctx, cx, y + 5, cx + 2, y + rowH - 5,
+                    LovenotePalette.alpha(LovenotePalette.C2, 210));
+            txt(ctx, trim(m.title(), cw - 94), cx + 10, y + 7,
+                    active ? LovenotePalette.text() : LovenotePalette.dim());
+            // Tiny activity label, no animated glow, no oversized icon badge.
+            txt(ctx, active ? "on" : "off", cx + cw - 66, y + 12,
+                    active ? LovenotePalette.C2 : LovenotePalette.faint());
+            int sx = cx + cw - 36, sy = y + (rowH - 10) / 2;
+            rr(ctx, sx, sy, 27, 10, 5, active ? 0xFF684A88 : 0xFF383B43);
+            rr(ctx, sx + (active ? 18 : 2), sy + 2, 6, 6, 3,
+                    active ? 0xFFF5F0FA : 0xFFAEB3BD);
+            if (y >= top && y + rowH <= bottom) {
+                addHit(cx, y, cw, rowH, K_CARD, m, null, 0);
+                addHit(sx - 4, sy - 5, 35, 20, K_SWITCH, m, null, 0);
+            }
+        }
+        ctx.disableScissor();
+        scrollbar(ctx, cx + cw + 6, top, bottom, scrollShown, maxScroll);
+        if (list.isEmpty()) txt(ctx, "No modules found", cx + 8, top + 8, LovenotePalette.faint());
+    }
+
     private void renderCards(GuiGraphicsExtractor ctx, int mx, int my,
                              int cx, int top, int cw, int bottom,
                              String q, boolean interactive, int corner) {
+        if (LovenoteMenuConfig.style.equals("Moon")) {
+            renderMoonRows(ctx, mx, my, cx, top, cw, bottom, q, interactive);
+            return;
+        }
         List<Row> list = visibleModules(q);
 
         int ncols = 1;
@@ -1986,8 +2602,14 @@ public class LovenoteModulesScreen extends TabScreen {
         int tabW=Math.max(61,Math.min(112,(right-left-18)/4));
         for(int i=0;i<tabs.length;i++){
             int tx=left+i*(tabW+5),ty=top+23;
-            rr(g,tx,ty,tabW,21,4,LovenotePalette.alpha(i==appearanceTab?LovenotePalette.C2:LovenotePalette.chip(),i==appearanceTab?170:210));
-            txt(g,tabs[i],tx+7,ty+6,i==appearanceTab?0xFFFFFFFF:LovenotePalette.dim());
+            boolean tabActive = i == appearanceTab;
+            float tabMotion = ease("v254-app-tab-" + i, tabActive ? 1f : 0f, 180);
+            DrainerSkin.control(g,tx,ty,tabW,21,tabActive);
+            if (tabMotion > 0.02f) {
+                fill(g, tx + 9, ty + 19, tx + tabW - 9, ty + 20,
+                        LovenotePalette.alpha(LovenotePalette.C2, Math.round(tabMotion * 160)));
+            }
+            txt(g,tabs[i],tx+7,ty+6,LovenotePalette.lerp(LovenotePalette.dim(), 0xFFFFFFFF, tabMotion));
             addHit(tx,ty,tabW,21,K_CONFIG,null,null,300+i);
         }
         int y=top+57;
@@ -2019,27 +2641,28 @@ public class LovenoteModulesScreen extends TabScreen {
             }
             txt(g,"Click a swatch or edit both colours. Widgets follow your accent.",left,sub+84,LovenotePalette.faint());
         }else if(appearanceTab==1){
-            configButton(g,left,y,Math.min(280,width-20),24,"Widget glass: "+(LovenoteMenuConfig.widgetGlass?"ON":"OFF"),340);
-            int sy=y+32,w=Math.min(450,width-20);
-            appearancePair(g,left,sy,w,"Widget glow",LovenoteMenuConfig.widgetGlow+"/100",341,342);sy+=29;
-            appearancePair(g,left,sy,w,"Widget outline",LovenoteMenuConfig.widgetBorder+"/160",343,344);sy+=29;
-            appearancePair(g,left,sy,w,"Glass reflection",LovenoteMenuConfig.widgetSheen+"/130",345,346);sy+=29;
-            appearancePair(g,left,sy,w,"Widget opacity",LovenoteMenuConfig.widgetOpacity+"%",347,348);sy+=29;
-            appearancePair(g,left,sy,w,"Menu glow",String.valueOf(LovenoteMenuConfig.glow),349,350);sy+=29;
-            appearancePair(g,left,sy,w,"Menu opacity",LovenoteMenuConfig.opacity+"%",351,352);sy+=29;
-            appearancePair(g,left,sy,w,"Corner radius",String.valueOf(LovenoteMenuConfig.corner),353,354);sy+=29;
-            if(sy+26<bottom)configButton(g,left,sy,w/2,22,"Window shadow: "+(LovenoteMenuConfig.shadow?"ON":"OFF"),355);
+            int w=Math.min(460,width-20);
+            configButton(g,left,y,w,24,"Widget glass: "+(LovenoteMenuConfig.widgetGlass?"ON":"OFF"),340);
+            int gap=7, colW=Math.max(140,(w-gap)/2), yy=y+32;
+            appearancePair(g,left,yy,colW,"Widget glow",LovenoteMenuConfig.widgetGlow+"",341,342);
+            appearancePair(g,left+colW+gap,yy,colW,"Widget outline",LovenoteMenuConfig.widgetBorder+"",343,344);yy+=30;
+            appearancePair(g,left,yy,colW,"Glass reflection",LovenoteMenuConfig.widgetSheen+"",345,346);
+            appearancePair(g,left+colW+gap,yy,colW,"Widget opacity",LovenoteMenuConfig.widgetOpacity+"%",347,348);yy+=30;
+            appearancePair(g,left,yy,colW,"Menu glow",String.valueOf(LovenoteMenuConfig.glow),349,350);
+            appearancePair(g,left+colW+gap,yy,colW,"Menu opacity",LovenoteMenuConfig.opacity+"%",351,352);yy+=30;
+            appearancePair(g,left,yy,colW,"Corner radius",String.valueOf(LovenoteMenuConfig.corner),353,354);
+            configButton(g,left+colW+gap,yy,colW,23,"Window shadow: "+(LovenoteMenuConfig.shadow?"ON":"OFF"),355);
         }else if(appearanceTab==2){
-            int w=Math.min(420,width-20),sy=y;
-            configButton(g,left,sy,w,24,"Floating L-heart decoration: "+(LovenoteMenuConfig.decorativeLogo?"ON":"OFF"),379);sy+=30;
-            configButton(g,left,sy,w,24,"Window animation: "+LovenoteMenuConfig.animation,359);sy+=30;
-            configButton(g,left,sy,w,24,"Click ripples: "+(LovenoteMenuConfig.ripples?"ON":"OFF"),357);sy+=30;
-            configButton(g,left,sy,w,24,"Stagger card entry: "+(LovenoteMenuConfig.stagger?"ON":"OFF"),358);sy+=30;
-            appearancePair(g,left,sy,w,"Animation speed",LovenoteMenuConfig.animSpeed+"ms",360,361);sy+=30;
-            appearancePair(g,left,sy,w,"Hover lift",String.valueOf(LovenoteMenuConfig.hoverLift),362,363);sy+=30;
-            appearancePair(g,left,sy,w,"Menu scale",LovenoteMenuConfig.menuScale+"%",364,365);sy+=30;
-            configButton(g,left,sy,w,24,"Compact cards: "+(LovenoteMenuConfig.compact?"ON":"OFF"),366);sy+=30;
-            configButton(g,left,sy,w,24,"Descriptions: "+(LovenoteMenuConfig.descriptions?"ON":"OFF"),367);
+            int w=Math.min(460,width-20),gap=7,colW=Math.max(140,(w-gap)/2),yy=y;
+            configButton(g,left,yy,colW,24,"Floating decoration: "+(LovenoteMenuConfig.decorativeLogo?"ON":"OFF"),379);
+            configButton(g,left+colW+gap,yy,colW,24,"Animation: "+LovenoteMenuConfig.animation,359);yy+=30;
+            configButton(g,left,yy,colW,24,"Click ripples: "+(LovenoteMenuConfig.ripples?"ON":"OFF"),357);
+            configButton(g,left+colW+gap,yy,colW,24,"Stagger cards: "+(LovenoteMenuConfig.stagger?"ON":"OFF"),358);yy+=30;
+            appearancePair(g,left,yy,colW,"Anim. speed",LovenoteMenuConfig.animSpeed+"ms",360,361);
+            appearancePair(g,left+colW+gap,yy,colW,"Hover lift",String.valueOf(LovenoteMenuConfig.hoverLift),362,363);yy+=30;
+            appearancePair(g,left,yy,colW,"Menu scale",LovenoteMenuConfig.menuScale+"%",364,365);
+            configButton(g,left+colW+gap,yy,colW,24,"Compact cards: "+(LovenoteMenuConfig.compact?"ON":"OFF"),366);yy+=30;
+            configButton(g,left,yy,w,24,"Module descriptions: "+(LovenoteMenuConfig.descriptions?"ON":"OFF"),367);
         }else{
             txt(g,"Choose an installed system font. No font files are bundled.",left,y,LovenotePalette.dim());
             txt(g,"Drainer logo artwork stays separate.",left,y+17,LovenotePalette.faint());
@@ -2050,11 +2673,12 @@ public class LovenoteModulesScreen extends TabScreen {
                 int xx=left+(i%4)*(w+6), yy=y+43+(i/4)*32;
                 configButton(g,xx,yy,w,26,names[i]+(names[i].equals(LovenoteMenuConfig.fontMode)?" *":""),choices[i]);
             }
-            txt(g,"Preview   Smooth text / Drainer 123",left,y+119,LovenotePalette.text());
-            txt(g,"Your OS may substitute unavailable fonts.",left,y+139,LovenotePalette.dim());
-            configButton(g,left,y+162,Math.min(310,width-25),23,"Tooltips: "+(LovenoteMenuConfig.tooltips?"ON":"OFF"),368);
-            configButton(g,left,y+189,Math.min(310,width-25),23,"Footer: "+(LovenoteMenuConfig.footer?"ON":"OFF"),373);
-            configButton(g,left,y+216,Math.min(310,width-25),23,"Header underline: "+(LovenoteMenuConfig.headerLine?"ON":"OFF"),369);
+            txt(g,"Preview   Smooth text / Drainer 123",left,y+113,LovenotePalette.text());
+            txt(g,"OS fonts may be substituted.",left,y+130,LovenotePalette.dim());
+            int toggleW=Math.max(80,Math.min(135,(right-left-12)/3));
+            configButton(g,left,y+149,toggleW,23,"Tooltips: "+(LovenoteMenuConfig.tooltips?"ON":"OFF"),368);
+            configButton(g,left+toggleW+6,y+149,toggleW,23,"Footer: "+(LovenoteMenuConfig.footer?"ON":"OFF"),373);
+            configButton(g,left+2*(toggleW+6),y+149,toggleW,23,"Header line: "+(LovenoteMenuConfig.headerLine?"ON":"OFF"),369);
         }
     }
 
@@ -2108,7 +2732,9 @@ public class LovenoteModulesScreen extends TabScreen {
         int sx = LovenoteMenuConfig.railRight ? rx + railW - sbw : rx;
 
         if (sb > 0.02f) for (int i = 5; i >= 1; i--) rr(ctx, sx + sbw - 2, wy + 4, i * 2 + 2, winH - 8, 8, LovenotePalette.alpha(0x000000, (int) (9 * sb)));
-        rr(ctx, sx, wy, sbw, winH, corner, LovenotePalette.dark ? 0xFA0C0C12 : 0xFAEDEDF4);
+        rr(ctx, sx, wy, sbw, winH, corner,
+                LovenoteMenuConfig.style.equals("Moon") ? 0xFB111318 :
+                (LovenotePalette.dark ? 0xFA0C0C12 : 0xFAEDEDF4));
         grad(ctx, sx + 2, wy + 8, sx + sbw - 2, wy + 9, LovenotePalette.alpha(LovenotePalette.C1, 90), LovenotePalette.alpha(LovenotePalette.C3, 90));
         fill(ctx, LovenoteMenuConfig.railRight ? sx : sx + sbw - 1, wy + 20,
                 LovenoteMenuConfig.railRight ? sx + 1 : sx + sbw, wy + winH - 20,
@@ -2124,7 +2750,8 @@ public class LovenoteModulesScreen extends TabScreen {
         int targetY = ys[Mth.clamp(page, 0, pages() - 1)];
         pillY = pillY < 0f ? targetY : pillY + (targetY - pillY) * (1f - (float) Math.exp(-dt / 70f));
         if (q.isEmpty()) {
-            rr(ctx, sx + 5, Math.round(pillY), sbw - 10, rowH, 6, LovenotePalette.alpha(LovenotePalette.C2, 70));
+            rr(ctx, sx + 5, Math.round(pillY), sbw - 10, rowH, 4,
+                    LovenoteMenuConfig.style.equals("Moon") ? 0xFF292431 : LovenotePalette.alpha(LovenotePalette.C2, 70));
             rr(ctx, sx + 5, Math.round(pillY) + rowH / 2 - 7, 2, 14, 1, LovenotePalette.alpha(LovenotePalette.wave(0f), 230));
         }
 
@@ -2155,8 +2782,8 @@ public class LovenoteModulesScreen extends TabScreen {
     private void drawPremiumSettings(GuiGraphicsExtractor ctx, int mx, int my, float panelA, int corner) {
         int px = premiumSettingsX();
         int pw = premiumSettingsW();
-        int py = wy + 112;
-        int ph = winH - 142;
+        int py = LovenoteMenuConfig.style.equals("Moon") ? moonContentTop : wy + 112;
+        int ph = LovenoteMenuConfig.style.equals("Moon") ? (wy + winH - 48 - py) : winH - 142;
         if (ph < 80) return;
         rr(ctx, px - 1, py - 1, pw + 2, ph + 2, corner, LovenotePalette.alpha(LovenotePalette.C2, 65));
         rr(ctx, px, py, pw, ph, corner, LovenotePalette.alpha(LovenotePalette.card(), 238));
@@ -2240,7 +2867,9 @@ public class LovenoteModulesScreen extends TabScreen {
         }
         for (int[] r : pageRects) {
             if (mx >= r[0] && mx <= r[0] + r[2] && my >= r[1] && my <= r[1] + r[3]) {
-                page = r[4]; configExpanded = false; tabMs = 0; scrollTarget = 0; scrollShown = 0; searchText = ""; addRipple((int) mx, (int) my);
+                page = r[4]; configExpanded = false; tabMs = 0; scrollTarget = 0; scrollShown = 0; searchText = "";
+                selected = null; panelModule = null; panelScrollTarget = 0;
+                addRipple((int) mx, (int) my);
                 return true;
             }
         }
@@ -2296,7 +2925,7 @@ public class LovenoteModulesScreen extends TabScreen {
                 case K_CONFIG -> configAction(hit.idx);
                 case K_SEARCH -> { searchFocused = true; return true; }
                 case K_EDITOR -> enterHudEditor();
-                case K_GUIDE -> {macroGuideOpen=true;macroLibraryMode=false;macroGuideSelected=0;macroGuideScroll=0;macroFeedback="";}
+                case K_GUIDE -> {macroGuideOpen=true;macroWorkspaceTab=hit.idx==3?3:0;macroLibraryMode=false;macroGuideSelected=0;macroGuideScroll=0;macroFeedback=""; if(macroWorkspaceTab==3) {var assist=com.lovenote.Lovenote.modules==null?null:com.lovenote.Lovenote.modules.get(com.lovenote.module.impl.SchematicAssist.class); schematicFiles=assist==null?java.util.List.of():assist.files(); schematicSelected=0; schematicScroll=0;}}
                 case K_CLOSE -> close();
                 default -> { }
             }
@@ -2349,7 +2978,8 @@ public class LovenoteModulesScreen extends TabScreen {
     @Override
     public boolean mouseScrolled(double mx, double my, double horizontal, double amount) {
         if(macroGuideOpen) {
-            macroGuideScroll=Math.max(0,macroGuideScroll-(int)Math.signum(amount)*2);
+            if(macroWorkspaceTab==3)schematicScroll=Math.max(0,schematicScroll-(int)Math.signum(amount)*2);
+            else macroGuideScroll=Math.max(0,macroGuideScroll-(int)Math.signum(amount)*2);
             return true;
         }
         if(drainerHudEditor) {
