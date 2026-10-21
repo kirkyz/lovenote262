@@ -63,6 +63,12 @@ public class LovenoteModulesScreen extends TabScreen {
 
     private final List<com.lovenote.module.Category> cats = new ArrayList<>();
     private final List<Row> allModules = new ArrayList<>();
+    // The module roster is immutable between buildRows() calls. Avoid rebuilding
+    // and sorting a fresh list every render frame just to read each active state.
+    private List<Row> visibleCache = List.of();
+    private String visibleCacheQuery = null;
+    private int visibleCachePage = Integer.MIN_VALUE;
+
     private final List<Hit> hits = new ArrayList<>();
     private final List<int[]> pageRects = new ArrayList<>();
     private final List<Ripple> ripples = new ArrayList<>();
@@ -73,6 +79,9 @@ public class LovenoteModulesScreen extends TabScreen {
     private int vw, vh;
     private float dt, ga = 1f, openMs, closeMs, tabMs, scrollTarget, scrollShown, panelScrollTarget, panelScrollShown;
     private float pillY = -1f;
+    // Purely visual drawer transition, independent from module state and input.
+    private Row v26PreviousSelection;
+    private float v26DrawerProgress = 1f;
     // UI-only spring coordinate; follows category selection at any FPS.
     private float motionRailY = Float.NaN;
 
@@ -953,6 +962,8 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
     }
 
     private void buildRows() {
+        visibleCacheQuery = null;
+        visibleCache = List.of();
         allModules.clear();
         java.util.Set<String> exposed = new java.util.HashSet<>();
         java.util.Set<String> meteorNames = new java.util.HashSet<>();
@@ -1140,11 +1151,12 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
     // ---------------------------------------------------------------- settings rows
 
     private void drawSwitch(GuiGraphicsExtractor ctx, int x, int y, float t) {
+        t = Mth.clamp(t, 0f, 1f);
+        int accent = LovenotePalette.C2;
+        // Keep a smooth state transition without stacking two large rounded tracks.
         rr(ctx, x, y, 24, 11, 6,
-                LovenotePalette.lerp(0x73485371, LovenotePalette.alpha(LovenotePalette.C2, 182), t));
-        rr(ctx, x + 1, y + 1, 22, 9, 5,
-                LovenotePalette.lerp(0xA61D2639, LovenotePalette.alpha(LovenotePalette.C2, 133), t));
-        rr(ctx, x + 2 + Math.round(t * 12), y + 2, 7, 7, 4, 0xFFF7F6FC);
+                LovenotePalette.lerp(0xBD232A3A, LovenotePalette.alpha(accent, 165), t));
+        rr(ctx, x + 2 + Math.round(t * 12), y + 2, 7, 7, 4, 0xFFF7F5FF);
     }
 
     private int chipsHeight(String[] names, int w) {
@@ -1375,12 +1387,14 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
     }
 
     private void drawSlider(GuiGraphicsExtractor ctx, int x, int y, int w, float t) {
+        if (w < 7) return;
         t = Mth.clamp(t, 0f, 1f);
         int sy = y + 16;
-        fill(ctx, x, sy, x + w, sy + 3, LovenotePalette.track());
-        int fx = x + (int) (w * t);
-        grad(ctx, x, sy, Math.max(x + 1, fx), sy + 3, LovenotePalette.C1, LovenotePalette.skeet(t));
-        rr(ctx, Mth.clamp(fx - 3, x, x + w - 6), sy - 3, 6, 9, 3, 0xFFFFFFFF);
+        int fx = x + Math.round((w - 1) * t);
+        // Simple fill tracks greatly reduce emitted GUI quads while retaining a rounded thumb.
+        fill(ctx, x, sy, x + w, sy + 4, 0xB52C3246);
+        if (fx > x) fill(ctx, x, sy, fx, sy + 4, LovenotePalette.alpha(LovenotePalette.C2, 221));
+        rr(ctx, Mth.clamp(fx - 3, x + 1, x + w - 7), sy - 2, 6, 8, 3, 0xFFF6F4FC);
     }
 
     private void chipsMulti(GuiGraphicsExtractor ctx, com.lovenote.setting.MultiSetting ms, int x, int y, int w, Row owner) {
@@ -1390,7 +1404,8 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
             if (cx + cw > w && cx > 0) { cx = 0; cy += 18; }
             int rx = x + cx, ry = y + cy;
             float t = ease(ms.hashCode() + ":" + i, ms.get(i) ? 1f : 0f, 150);
-            rr(ctx, rx, ry, cw, 15, 3, LovenotePalette.lerp(LovenotePalette.chip(), LovenotePalette.C2, t));
+            rr(ctx, rx, ry, cw, 15, 6,
+                    LovenotePalette.lerp(0xBD1B2132, LovenotePalette.alpha(LovenotePalette.C2, 150), t));
             txt(ctx, ms.names[i], rx + 6, ry + 4, LovenotePalette.lerp(LovenotePalette.dim(), LovenotePalette.text(), t));
             addHit(rx, ry, cw, 15, K_MULTI, owner, ms, i);
             cx += cw + 4;
@@ -1404,8 +1419,8 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
             if (cx + cw > w && cx > 0) { cx = 0; cy += 18; }
             int rx = x + cx, ry = y + cy;
             float t = ease(set.hashCode() + ":" + i, i == active ? 1f : 0f, 150);
-            rr(ctx, rx, ry, cw, 15, 3, LovenotePalette.lerp(LovenotePalette.chip(), LovenotePalette.C2, t));
-            if (t > 0.02f) rr(ctx, rx + 2, ry + 1, cw - 4, 13, 3, LovenotePalette.alpha(LovenotePalette.C2, (int) (255 * t)));
+            rr(ctx, rx, ry, cw, 15, 6,
+                    LovenotePalette.lerp(0xBD1B2132, LovenotePalette.alpha(LovenotePalette.C2, 165), t));
             txt(ctx, names[i], rx + 6, ry + 4, LovenotePalette.lerp(LovenotePalette.dim(), LovenotePalette.text(), t));
             addHit(rx, ry, cw, 15, kind, owner, set, i);
             cx += cw + 4;
@@ -1500,6 +1515,14 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
 
         boolean interactive = !animating;
         if (selected != null) panelModule = selected;
+        // The inspector slides only 12 logical pixels. Coordinates of controls and
+        // hit regions move together so the animation does not break clicking.
+        if (v26PreviousSelection != selected) {
+            v26PreviousSelection = selected;
+            v26DrawerProgress = selected == null ? 1f : 0f;
+        } else if (selected != null) {
+            v26DrawerProgress = Math.min(1f, v26DrawerProgress + Math.max(0f, dt) / 245f);
+        }
         float panelA = ease("panel", selected != null ? 1f : 0f, 220);
 
         // The Moon layout is a different workspace, not a recoloured three-column skin.
@@ -1753,12 +1776,15 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
         final int left = wx + 14, right = wx + winW - 14;
         final int ink = 0xFFF4F2FC, sub = 0xFFB2B7C9, muted = 0xFF838AA2;
         final int accent = LovenotePalette.C2;
-        // Inset midnight-glass chassis; avoid the thick violet outline of V22.
-        rr(ctx, wx - 2, wy - 2, winW + 4, winH + 4, 18, 0x3E876BBD);
+        // Premium 2026 chassis. A single soft rim instead of stacked rectangles.
+        rr(ctx, wx - 2, wy - 2, winW + 4, winH + 4, 19, 0x477B70AF);
         // Respect saved opacity without making text unreadable over bright terrain.
         int paneAlpha = Mth.clamp((int) (208f * LovenoteMenuConfig.opacity / 100f), 150, 230);
-        rr(ctx, wx, wy, winW, winH, 16, LovenotePalette.alpha(DrainerSkin.WINDOW, paneAlpha));
+        rr(ctx, wx, wy, winW, winH, 17, LovenotePalette.alpha(DrainerSkin.WINDOW, paneAlpha));
         drawMoonAtmosphere(ctx);
+        // Controlled highlight in the title area; no full-screen blur passes.
+        fill(ctx, wx + 27, wy + 1, wx + winW - 27, wy + 2,
+                LovenotePalette.alpha(LovenotePalette.C3, 39));
         fill(ctx, wx + 24, wy + 2, wx + winW - 24, wy + 3, LovenotePalette.alpha(accent, 67));
         // A thin sweeping accent in the title area; motion without a fullscreen shader.
         int headerSweepX = wx + 28 + (int)((winW - 65) *
@@ -1771,12 +1797,13 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
         fill(ctx, left, wy + 67, right, wy + 68, 0x294E5E82);
 
         // Identity and state in a separated top bar.
-        rr(ctx, left + 1, wy + 13, 42, 42, 14, 0x573E2F63);
-        rr(ctx, left + 4, wy + 16, 36, 36, 11, 0xAE18152B);
-        txtS(ctx, "D", left + 18, wy + 29, 0xFFF4DDFF);
-        fill(ctx, left + 8, wy + 52, left + 35, wy + 53, 0x9EAA82ED);
-        txtScaled(ctx, "DRAINER", left + 57, wy + 16, 1.35f, ink);
-        txt(ctx, "CLIENT DASHBOARD   /   26.2", left + 57, wy + 38, muted);
+        // A restrained identity mark, with one illuminated baseline.
+        rr(ctx, left + 2, wy + 14, 39, 39, 12, 0x835D4782);
+        rr(ctx, left + 3, wy + 15, 37, 37, 11, 0xBC17182C);
+        txtS(ctx, "D", left + 16, wy + 27, 0xFFF4DDFF);
+        fill(ctx, left + 10, wy + 51, left + 33, wy + 52, LovenotePalette.alpha(accent, 188));
+        txtScaled(ctx, "DRAINER", left + 55, wy + 16, 1.40f, ink);
+        txt(ctx, "WORKSPACE   /   MINECRAFT 26.2", left + 55, wy + 38, muted);
 
         final int closeX = right - 29;
         rr(ctx, closeX, wy + 19, 28, 27, 9, 0x752D3043);
@@ -1797,7 +1824,7 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
         // Permanent left navigation. Fixed spacing prevents overlap in compact mode.
         final int navX = left, navY = wy + 81, navW = Math.min(148, Math.max(124, winW / 6 + 10));
         final int navBottom = wy + winH - 63;
-        rr(ctx, navX, navY, navW, Math.max(110, navBottom - navY), 15, 0xB0131928);
+        rr(ctx, navX, navY, navW, Math.max(110, navBottom - navY), 16, 0x97131827);
         fill(ctx, navX + navW - 1, navY + 18, navX + navW, navBottom - 18, 0x225E6684);
         txtS(ctx, "WORKSPACES", navX + 13, navY + 13, 0xFF948FB3);
         int navTop = navY + 34;
@@ -1816,8 +1843,10 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
                     && my >= yy && my < yy + rowHeight;
             float a = ease("v24-rail-" + i, active || hover ? 1f : 0f, 165);
             int alpha = Math.min(194, 7 + Math.round(140 * a));
-            rr(ctx, navX + 6, yy, navW - 12, rowHeight, 9, (alpha << 24) | 0x32244D);
+            rr(ctx, navX + 6, yy, navW - 12, rowHeight, 10,
+                    (Math.min(176, alpha) << 24) | 0x35294F);
             if (hover && !active) fill(ctx, navX + 14, yy + 2, navX + navW - 14, yy + 3, 0x1DFFFFFF);
+            if (active) fill(ctx, navX + 18, yy + 1, navX + navW - 17, yy + 2, 0x20FFFFFF);
             // The sliding selector is drawn once below, above the nav rows.
             int glyphColor = active ? 0xFFE7D4FF : hover ? 0xFFD2C2E8 : 0xFF9799AC;
             // A quiet numeric index reads cleaner than chopped category initials.
@@ -1844,20 +1873,25 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
         final String query = searchText.trim().toLowerCase(java.util.Locale.ROOT);
         final String title = query.isEmpty() ? pageLabel(page) : "Search results";
         final int count = visibleModules(query).size();
-        // V25.6: compact floating toolbar, instead of an oversized box within a box.
-        // The 26.2 screen coordinates and interactive search hitbox remain unchanged.
-        rr(ctx, cx, headY + 3, contentW, 53, 15, 0x44101320);
-        rr(ctx, cx + 1, headY + 1, contentW - 2, 53, 14, 0x8E171D2C);
-        fill(ctx, cx + 14, headY + 2, cx + contentW - 14, headY + 3, 0x20FFFFFF);
-        rr(ctx, cx + 14, headY + 14, 3, 20, 2, LovenotePalette.alpha(accent, 214));
-        txtS(ctx, trim(title.toUpperCase(java.util.Locale.ROOT),
-                Math.max(45, contentW - Math.max(115, Math.min(226, contentW / 3)) - 70)),
-                cx + 27, headY + 11, ink);
-        txt(ctx, count + " MODULES   \u2022   " + activeCount + " ACTIVE", cx + 27, headY + 34, muted);
+        // V25.9: layered command deck, not a large labelled rectangle.
+        rr(ctx, cx, headY + 1, contentW, 59, 15, 0x641D2238);
+        rr(ctx, cx + 1, headY + 2, contentW - 2, 57, 14, 0xB51A1F31);
+        fill(ctx, cx + 18, headY + 3, cx + contentW - 18, headY + 4, 0x21FFFFFF);
+        float barPulse = (float)(0.5 + 0.5 * Math.sin(System.nanoTime() * 8.0e-10));
+        rr(ctx, cx + 14, headY + 14, 3, 30, 2,
+                LovenotePalette.alpha(accent, 147 + Math.round(30 * barPulse)));
+        txt(ctx, "MODULE LIBRARY  /  " + (query.isEmpty() ? "WORKSPACE" : "SEARCH"),
+                cx + 27, headY + 10, 0xFF969EB7);
+        txtScaled(ctx, trim(title.toUpperCase(java.util.Locale.ROOT),
+                Math.max(50, contentW - Math.max(115, Math.min(226, contentW / 3)) - 84)),
+                cx + 26, headY + 27, 1.23f, ink);
+        String totalLabel = count + " MODS  /  " + activeCount + " ON";
+        txt(ctx, totalLabel, cx + 27, headY + 47,
+                LovenotePalette.alpha(LovenotePalette.C3, 176));
 
         final int searchW = Math.max(115, Math.min(226, contentW / 3));
         final int searchX = contentRight - searchW - 10;
-        final int searchY = headY + 12;
+        final int searchY = headY + 15;
         float searchGlow = ease("v254-search-focus", searchFocused ? 1f : 0f, 190);
         rr(ctx, searchX, searchY, searchW, 30, 11,
                 LovenotePalette.lerp(0x42576288, LovenotePalette.alpha(accent, 175), searchGlow));
@@ -1871,7 +1905,7 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
         }
         addHit(searchX, searchY, searchW, 30, K_SEARCH, null, null, 0);
 
-        moonContentTop = headY + 66;
+        moonContentTop = headY + 69;
         final int bottom = wy + winH - 67;
         if (moonContentTop < bottom) {
             int maxRight = selected == null ? contentRight : Math.min(contentRight, premiumSettingsX() - 13);
@@ -1885,7 +1919,7 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
         }
 
         // Pinned workflow buttons preserve the old K_GUIDE/K_EDITOR actions.
-        fill(ctx, left, wy + winH - 58, right, wy + winH - 57, 0x414E536B);
+        fill(ctx, left, wy + winH - 58, right, wy + winH - 57, 0x2C5E6387);
         int dockY = wy + winH - 46;
         float guideHover = ease("v254-guide", interactive && mx >= left && mx < left + 111
                 && my >= dockY && my < dockY + 29 ? 1f : 0f, 160);
@@ -1935,19 +1969,25 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
                 : String.valueOf(first);
     }
 
+    /**
+     * V25.8: lightweight premium-glass card renderer.
+     * Fixed positions = stable hitboxes; only colour and a short highlight
+     * interpolate with actual frame delta. No multi-layer glow loops, no new
+     * textures, and no allocations proportional to hover progress.
+     */
     private void renderMoonTiles(GuiGraphicsExtractor ctx, int mx, int my,
                                  int left, int top, int areaW, int bottom,
                                  String q, boolean interactive) {
         List<Row> list = visibleModules(q);
-        // Never squeeze controls into tiny three-column cards. Responsive 1/2/3 columns.
-        final int gap = 7, rowH = 49;
+        final int gap = 8, rowH = 49;
         final int columns = selected == null && areaW >= 720 ? 3
                 : selected == null && areaW >= 415 ? 2 : 1;
         final int tileW = Math.max(100, (areaW - gap * (columns - 1)) / columns);
         final int rows = (list.size() + columns - 1) / columns;
         maxScroll = Math.max(0, rows * (rowH + gap) - gap - (bottom - top));
         scrollTarget = Mth.clamp(scrollTarget, 0, maxScroll);
-        scrollShown += (scrollTarget - scrollShown) * (1f - (float) Math.exp(-dt / 58f));
+        scrollShown += (scrollTarget - scrollShown)
+                * (1f - (float) Math.exp(-Math.max(0f, dt) / 65f));
         if (Math.abs(scrollShown - scrollTarget) < 0.2f) scrollShown = scrollTarget;
 
         ctx.enableScissor(left - 1, top - 1, left + areaW + 2, bottom);
@@ -1957,54 +1997,73 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
             int y = top + (i / columns) * (rowH + gap) - Math.round(scrollShown);
             if (y + rowH <= top || y >= bottom) continue;
             boolean active = m.active(), focus = selected == m, unported = v24IsUnported(m);
-            boolean hover = interactive && mx >= x && mx < x + tileW && my >= y
-                    && my < y + rowH && my >= top && my < bottom;
-            float t = ease("v24-hover:" + m.title(), hover ? 1f : 0f, 145);
-            float on = ease("v24-on:" + m.title(), active ? 1f : 0f, 170);
-            // V25.7.2: keep geometry fixed. Fading colours looks smoother than
-            // integer-rounded spatial lift at variable FPS, and hitboxes never drift.
-            int yy = y;
-            // One rounded card instead of 4-8 stacked rounded glow layers.
-            // Each rounded call expands to many GuiGraphicsExtractor fill calls.
-            float intensity = Math.max(t, active ? 0.28f : 0f);
-            int cardColor = LovenotePalette.lerp(
-                    active ? 0xE021273C : 0xDC192131, 0xED302847, t);
-            rr(ctx, x, yy, tileW, rowH, 10, cardColor);
-            // Two inexpensive single-fill highlights, faded over actual frame dt.
-            if (intensity > 0.02f) {
-                int topAlpha = Math.round(25f + 120f * intensity);
-                fill(ctx, x + 14, yy + 1, x + tileW - 14, yy + 2,
-                        LovenotePalette.alpha(LovenotePalette.C3, topAlpha));
-                fill(ctx, x + 8, yy + 10, x + 10, yy + rowH - 10,
-                        LovenotePalette.alpha(LovenotePalette.C2,
-                                Math.round(160f * intensity)));
+            boolean hovered = interactive && mx >= x && mx < x + tileW
+                    && my >= y && my < y + rowH && my >= top && my < bottom;
+            // Stable hitboxes, but spring-soft visual motion in fractional pixels.
+            float hover = ease("v24-hover:" + m.title(), hovered ? 1f : 0f, 185);
+            float on = ease("v24-on:" + m.title(), active ? 1f : 0f, 205);
+            float glow = Math.max(hover, focus ? 0.67f : on * 0.40f);
+            final int accent = LovenotePalette.C2;
+            // A short stagger when changing categories; only visible cards are drawn.
+            float arrive = Mth.clamp((tabMs - (i % 12) * 17f) / 205f, 0f, 1f);
+            float reveal = arrive * arrive * (3f - 2f * arrive);
+            float hSmooth = hover * hover * (3f - 2f * hover);
+            float shift = (1f - reveal) * 5.0f - 2.65f * hSmooth;
+            boolean translated = Math.abs(shift) > 0.02f;
+            if (translated) { ctx.pose().pushMatrix(); ctx.pose().translate(0f, shift); }
+
+            // One offset depth layer, a fine chrome edge and a translucent body.
+            // This is intentionally GPU-cheap compared with a stack of bloom passes.
+            rr(ctx, x + 1, y + 3, tileW - 2, rowH - 1, 12,
+                    LovenotePalette.alpha(0x060712, 65 + Math.round(35 * hover)));
+            rr(ctx, x, y, tileW, rowH, 12,
+                    LovenotePalette.lerp(0x57636C92,
+                            LovenotePalette.alpha(accent, 162), Math.max(hover * 0.88f, focus ? 0.85f : 0f)));
+            rr(ctx, x + 1, y + 1, tileW - 2, rowH - 2, 11,
+                    LovenotePalette.lerp(active ? 0xE51A2036 : 0xDB151B2B,
+                            0xE82D2B49, hover * 0.93f));
+            fill(ctx, x + 14, y + 2, x + tileW - 14, y + 3,
+                    LovenotePalette.alpha(0xF8EFFF, 22 + Math.round(41 * glow)));
+            if (glow > 0.012f) {
+                fill(ctx, x + 2, y + 12, x + 4, y + rowH - 12,
+                        LovenotePalette.alpha(accent, Math.round(188 * glow)));
             }
-            // Small stable monogram: one rounded fill, no extra shadow/reflection stack.
-            rr(ctx, x + 13, yy + 11, 28, 27, 8,
-                    LovenotePalette.lerp(0x92293246,
-                            LovenotePalette.alpha(LovenotePalette.C2, 118), t));
+            if (hover > 0.04f) {
+                float sweep = (float)(0.5 + 0.5 * Math.sin(System.nanoTime() * 1.6e-9));
+                int span = Math.max(1, tileW - 80);
+                int shineX = x + 16 + Math.round(span * sweep);
+                fill(ctx, shineX, y + 2, Math.min(x + tileW - 14, shineX + 23), y + 3,
+                        LovenotePalette.alpha(LovenotePalette.C3, Math.round(112 * hover)));
+            }
+            // Minimal glyph on an inset lit plate. The plate shares the card's palette.
+            rr(ctx, x + 11, y + 11, 27, 27, 9,
+                    LovenotePalette.lerp(0x6E343B56,
+                            LovenotePalette.alpha(accent, 133), Math.max(on, hover * 0.78f)));
             String glyph = shortModuleMark(m.title());
-            txt(ctx, glyph, x + 27 - font.width(glyph) / 2, yy + 20,
-                    active ? 0xFFFFFFFF : 0xFFDDE4F5);
-            final int textX = x + 50;
-            int titleSpace = Math.max(40, tileW - 104);
-            txtS(ctx, trim(m.title(), titleSpace), textX, yy + 10,
-                    active ? 0xFFFFFFFF : 0xFFF3F5FC);
+            txt(ctx, glyph, x + 25 - font.width(glyph) / 2, y + 20,
+                    active ? 0xFFF9F5FF : 0xFFE5E8F5);
+
+            final int textX = x + 49;
+            final int textWidth = Math.max(38, tileW - 104);
+            txtS(ctx, trim(m.title(), textWidth), textX, y + 9,
+                    active ? 0xFFFFFFFF : 0xFFF5F5FD);
             String description = unported ? "NOT PORTED TO 26.2" : m.description();
-            txt(ctx, trim(description, Math.max(35, tileW - 106)), textX, yy + 29,
-                    unported ? 0xFFFFC5A1 : 0xFFADBBD2);
+            txt(ctx, trim(description, Math.max(32, tileW - 105)), textX, y + 29,
+                    unported ? 0xFFF4B997 : 0xFFAFBBD3);
             if (unported) {
-                txt(ctx, "!", x + tileW - 20, yy + 12, 0xFFE9AC92);
+                txt(ctx, "!", x + tileW - 20, y + 12, 0xFFFFC5A1);
             } else {
-                int swX = x + tileW - 36, swY = yy + 11;
-                // Cheap card switch: 3 fills instead of nested rounded shapes.
-                fill(ctx, swX, swY + 1, swX + 24, swY + 11,
-                        LovenotePalette.lerp(0xA33C455C, LovenotePalette.C2, on));
-                fill(ctx, swX + 1, swY + 2, swX + 23, swY + 10,
-                        LovenotePalette.lerp(0xCD222A3B, LovenotePalette.C2, on));
-                int thumbX = swX + 3 + Math.round(on * 11f);
-                fill(ctx, thumbX, swY + 3, thumbX + 6, swY + 9, 0xFFF3F0FF);
+                int sx = x + tileW - 39, sy = y + 11;
+                rr(ctx, sx, sy, 27, 13, 7,
+                        LovenotePalette.lerp(0x8B3A4158, LovenotePalette.alpha(accent, 194), on));
+                rr(ctx, sx + 1, sy + 1, 25, 11, 6,
+                        LovenotePalette.lerp(0xC51B2535, LovenotePalette.alpha(accent, 133), on));
+                rr(ctx, sx + 3 + Math.round(on * 12f), sy + 3, 7, 7, 4, 0xFFF7F4FF);
             }
+            if (translated) ctx.pose().popMatrix();
+
+            // Hitboxes remain at the original card position. Partial cards are
+            // clipped visually and never receive offscreen mouse interactions.
             if (y >= top && y + rowH <= bottom) {
                 addHit(x, y, tileW, rowH, K_CARD, m, null, 0);
                 if (!unported) addHit(x + tileW - 39, y + 6, 35, 20, K_SWITCH, m, null, 0);
@@ -2158,12 +2217,19 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
     }
 
     private List<Row> visibleModules(String q) {
+        if (visibleCacheQuery != null && visibleCachePage == page && visibleCacheQuery.equals(q))
+            return visibleCache;
         List<Row> out = new ArrayList<>();
         for (Row m : allModules) {
-            if (!q.isEmpty()) { if (m.title().toLowerCase().contains(q) || m.description().toLowerCase().contains(q)) out.add(m); }
-            else if (m.catIndex() == page) out.add(m);
+            if (!q.isEmpty()) {
+                if (m.title().toLowerCase(java.util.Locale.ROOT).contains(q)
+                        || m.description().toLowerCase(java.util.Locale.ROOT).contains(q)) out.add(m);
+            } else if (m.catIndex() == page) out.add(m);
         }
         out.sort((x, y) -> x.title().compareToIgnoreCase(y.title()));
+        visibleCache = out;
+        visibleCacheQuery = q;
+        visibleCachePage = page;
         return out;
     }
 
@@ -2780,59 +2846,77 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
     }
 
     private void drawPremiumSettings(GuiGraphicsExtractor ctx, int mx, int my, float panelA, int corner) {
-        int px = premiumSettingsX();
-        int pw = premiumSettingsW();
-        int py = LovenoteMenuConfig.style.equals("Moon") ? moonContentTop : wy + 112;
-        int ph = LovenoteMenuConfig.style.equals("Moon") ? (wy + winH - 48 - py) : winH - 142;
+        final int baseX = premiumSettingsX();
+        final int pw = premiumSettingsW();
+        final int py = LovenoteMenuConfig.style.equals("Moon") ? moonContentTop : wy + 112;
+        final int ph = LovenoteMenuConfig.style.equals("Moon") ? (wy + winH - 48 - py) : winH - 142;
         if (ph < 80) return;
-        rr(ctx, px - 1, py - 1, pw + 2, ph + 2, corner, LovenotePalette.alpha(LovenotePalette.C2, 65));
-        rr(ctx, px, py, pw, ph, corner, LovenotePalette.alpha(LovenotePalette.card(), 238));
+
+        // Smoothstep entrance is spatial, not a shader or a per-frame allocation.
+        // Everything including scissor and click regions derives from animated px.
+        float entrance = Mth.clamp(v26DrawerProgress, 0f, 1f);
+        entrance = entrance * entrance * (3f - 2f * entrance);
+        final int px = baseX + Math.round((1f - entrance) * 12f);
+        final int accent = LovenotePalette.C2;
+        final int frameRadius = Math.max(10, Math.min(15, corner + 6));
+
+        // One rounded glass surface plus one thin outline; avoid large overdraw layers.
+        rr(ctx, px - 1, py - 1, pw + 2, ph + 2, frameRadius + 1,
+                LovenotePalette.alpha(accent, 68));
+        rr(ctx, px, py, pw, ph, frameRadius, 0xE0161A29);
+        fill(ctx, px + 15, py + 2, px + pw - 15, py + 3, 0x2BFFFFFF);
+
         Row m = selected;
         if (m == null) {
-            txtS(ctx, "Module Settings", px + 12, py + 13, LovenotePalette.text());
-            fill(ctx, px + 10, py + 36, px + pw - 10, py + 37, LovenotePalette.alpha(LovenotePalette.track(), 170));
-            txt(ctx, "Select a module", px + 12, py + 52, LovenotePalette.faint());
-            txt(ctx, "to edit its settings", px + 12, py + 68, LovenotePalette.dim());
+            txtS(ctx, "INSPECTOR", px + 15, py + 11, LovenotePalette.alpha(accent, 220));
+            txt(ctx, "Choose a module to configure", px + 15, py + 37, LovenotePalette.dim());
             panelMax = 0;
             return;
         }
-        txtS(ctx, trim(m.title(), pw - 84), px + 12, py + 11, LovenotePalette.text());
-        txt(ctx, trim(m.description(), pw - 24), px + 12, py + 25, LovenotePalette.faint());
+
+        // Stronger hierarchy: context label, module name and useful description.
+        txt(ctx, "MODULE SETTINGS", px + 15, py + 8, LovenotePalette.alpha(LovenotePalette.C3, 183));
+        txtS(ctx, trim(m.title(), pw - 92), px + 15, py + 23, 0xFFF3F2FC);
+        txt(ctx, trim(m.description(), pw - 30), px + 15, py + 44, LovenotePalette.dim());
         float on = ease(m.title() + ":s", m.active() ? 1f : 0f, 170);
-        drawSwitch(ctx, px + pw - 64, py + 12, on);
-        addHit(px + pw - 67, py + 8, 28, 18, K_PTOGGLE, m, null, 0);
-        circle(ctx, px + pw - 17, py + 17, 4, 0xFFEF4444);
-        addHit(px + pw - 23, py + 10, 13, 14, K_PCLOSE, m, null, 0);
-        fill(ctx, px + 10, py + 38, px + pw - 10, py + 39, LovenotePalette.alpha(LovenotePalette.track(), 170));
-        int top = py + 44, bottom = py + ph - 10;
-        int settingW = pw - 26;
-        int total = 4 + panelTotal(m, settingW);
+        drawSwitch(ctx, px + pw - 59, py + 24, on);
+        addHit(px + pw - 64, py + 19, 34, 21, K_PTOGGLE, m, null, 0);
+        // Close action is a quiet circular cross rather than a red danger dot.
+        rr(ctx, px + pw - 27, py + 19, 17, 18, 6, 0xB93B344A);
+        txt(ctx, "x", px + pw - 21, py + 24, 0xFFE7DEEE);
+        addHit(px + pw - 29, py + 18, 20, 21, K_PCLOSE, m, null, 0);
+        fill(ctx, px + 13, py + 61, px + pw - 13, py + 62, 0x3A7A7493);
+
+        final int top = py + 68, bottom = py + ph - 11;
+        final int settingW = pw - 30;
+        final int total = 4 + panelTotal(m, settingW);
         panelMax = Math.max(0, total - (bottom - top));
         panelScrollTarget = Mth.clamp(panelScrollTarget, 0, panelMax);
-        panelScrollShown += (panelScrollTarget - panelScrollShown) * (1f - (float) Math.exp(-dt / 40f));
+        panelScrollShown += (panelScrollTarget - panelScrollShown) *
+                (1f - (float) Math.exp(-Math.max(0f, dt) / 78f));
         if (Math.abs(panelScrollTarget - panelScrollShown) < 0.2f) panelScrollShown = panelScrollTarget;
         int firstHit = hits.size();
         ctx.enableScissor(px, top, px + pw, bottom);
-        int y = top + 4 - Math.round(panelScrollShown);
+        int y = top + 5 - Math.round(panelScrollShown);
         boolean first = true;
-        for (Group g : m.groups()) {
+        for (Group group : m.groups()) {
             boolean any = false;
-            for (Object st : g.settings()) if (rowH(st, settingW) > 0) { any = true; break; }
+            for (Object st : group.settings()) if (rowH(st, settingW) > 0) { any = true; break; }
             if (!any) continue;
-            if (!first) fill(ctx, px + 13, y - 2, px + pw - 13, y - 1, LovenotePalette.alpha(LovenotePalette.track(), 120));
+            if (!first) fill(ctx, px + 15, y - 2, px + pw - 15, y - 1, 0x305C5874);
             first = false;
-            y += 4;
-            txt(ctx, g.name(), px + 13, y, LovenotePalette.alpha(LovenotePalette.faint(), 190));
+            y += 5;
+            txt(ctx, group.name(), px + 15, y,
+                    LovenotePalette.alpha(LovenotePalette.C3, 153));
             y += 14;
-            for (Object st : g.settings()) y += drawSetting(ctx, m, st, px + 13, y, settingW);
+            for (Object st : group.settings()) y += drawSetting(ctx, m, st, px + 15, y, settingW);
         }
         ctx.disableScissor();
-        // Scissoring does not clip hitboxes: remove invisible controls from the input list.
         for (int i = hits.size() - 1; i >= firstHit; i--) {
-            Hit h = hits.get(i);
-            if (h.y < top || h.y + h.h > bottom) hits.remove(i);
+            Hit hit = hits.get(i);
+            if (hit.y < top || hit.y + hit.h > bottom) hits.remove(i);
         }
-        scrollbar(ctx, px + pw - 6, top, bottom, panelScrollShown, panelMax);
+        scrollbar(ctx, px + pw - 7, top, bottom, panelScrollShown, panelMax);
     }
 
     // ---------------------------------------------------------------- input

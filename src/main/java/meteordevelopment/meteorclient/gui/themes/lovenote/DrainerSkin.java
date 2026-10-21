@@ -8,13 +8,13 @@ public final class DrainerSkin {
     // Low-contrast graphite surfaces, restrained violet accent, consistent typography.
     // These values are intentionally shared by Guides, Schematics, HUD and SkyBlock.
     public static final int WINDOW = 0xB20A1020;
-    public static final int PANEL = 0xDB171D2D;
-    public static final int PANEL_RAISED = 0xE7252A42;
+    public static final int PANEL = 0xD0192031;
+    public static final int PANEL_RAISED = 0xDF29263D;
     public static final int FIELD = 0xD9141B2A;
     public static final int TEXT = 0xFFF5F3FD;
     public static final int SUBTEXT = 0xFFB8C2D8;
     public static final int MUTED = 0xFF8E9DB7;
-    public static final int DIVIDER = 0x2C5D6788;
+    public static final int DIVIDER = 0x285D6788;
 
     public static int accent() { return LovenotePalette.C2; }
     public static int accentText() { return LovenotePalette.C3; }
