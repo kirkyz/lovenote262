@@ -37,7 +37,8 @@ public final class ModernText {
     private static long sequence;
     private static boolean available = true;
     private static String lastMode = "";
-    private static Font awt() {
+    private static Font awt() { return awt(false); }
+    private static Font awt(boolean bold) {
         String mode = LovenoteMenuConfig.fontMode;
         int size = "Compact".equals(mode) ? 15 : 17;
         String face = switch (mode) {
@@ -47,7 +48,7 @@ public final class ModernText {
             case "Trebuchet" -> "Trebuchet MS";
             default -> "Segoe UI";
         };
-        return new Font(face, Font.PLAIN, size);
+        return new Font(face, bold ? Font.BOLD : Font.PLAIN, size);
     }
     public static boolean enabled() {
         return available && !"Classic".equals(LovenoteMenuConfig.fontMode);
@@ -83,7 +84,13 @@ public final class ModernText {
             } catch (Throwable ignored) {}
         }
     }
+    public static boolean drawBold(GuiGraphicsExtractor g, String str, int x, int y, int argb) {
+        return drawStyled(g, str, x, y, argb, true);
+    }
     public static boolean draw(GuiGraphicsExtractor g, String str, int x, int y, int argb) {
+        return drawStyled(g, str, x, y, argb, false);
+    }
+    private static boolean drawStyled(GuiGraphicsExtractor g, String str, int x, int y, int argb, boolean bold) {
         if (!enabled() || str==null || str.isEmpty()) return false;
         if (str.length()>145) return false;
         // FPS counters change almost every frame. Rasterising one GPU texture
@@ -96,10 +103,10 @@ public final class ModernText {
             if (!mode.equals(lastMode)) { cache.clear(); widthCache.clear(); lastMode=mode; }
             // Cache colour in 16-shade steps to avoid per-frame textures for animated accents.
             int color = (argb&0xF0F0F0F0) | 0x0F0F0F0F;
-            String key = mode + "|" + Integer.toHexString(color) + "|" + str;
+            String key = mode + (bold ? "|bold|" : "|regular|") + Integer.toHexString(color) + "|" + str;
             Texture texture = cache.get(key);
             if (texture==null) {
-                Font face=awt();
+                Font face=awt(bold);
                 BufferedImage probe=new BufferedImage(1,1,BufferedImage.TYPE_INT_ARGB);
                 Graphics2D measure=probe.createGraphics();measure.setFont(face);
                 int w=Math.max(2,measure.getFontMetrics().stringWidth(str)+4);
