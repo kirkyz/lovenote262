@@ -40,6 +40,8 @@ import static meteordevelopment.meteorclient.MeteorClient.mc;
 /** Drainer module and HUD screen, including the streamlined Moon workspace. */
 public class LovenoteModulesScreen extends TabScreen {
     private static final int PW = 208, PH = 320, ACC_COLS = 11, RAIL_MIN = 46;
+    private static final String[] MACRO_WORKSPACE_LABELS = {"Guides", "Library", "SkyBlock", "Schems"};
+    private static final String[] MACRO_SKYBLOCK_TRACKS = {"START", "LEVELS", "GARDEN", "MINING", "COMBAT", "COINS"};
     // Existing registry placeholders stay untouched. Only their menu grouping changes.
     private static final Set<String> RAGE_MODULES = Set.of(
         "Aura", "KillAura", "AimAssist", "Triggerbot", "Criticals", "WTap",
@@ -264,6 +266,10 @@ public class LovenoteModulesScreen extends TabScreen {
                 boolean sel=m==hudSelected;
                 String label=m.name;
                 while(label.length()>4&&font.width(label)>chipW-6) label=label.substring(0,label.length()-2);
+                if (sel) {
+                    g.fill(chipX,chipY-1,chipX+chipW,chipY+chipH+1,0x463B3154);
+                    DrainerSkin.selectionMark(g,chipX,chipY,chipH);
+                }
                 txt(g,label,chipX+3,chipY+4,
                     sel?0xFFF6DDFE:m.enabled?0xDAD6BADF:0xA7B09ABA);
                 if(sel) {
@@ -356,7 +362,7 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
 }
     private void macroGuideDraw(GuiGraphicsExtractor g) {
         macroGuideHits.clear();
-        g.fill(0,0,width,height,0x72060912);
+        g.fill(0,0,width,height,0x64060912);
         float s=macroScale();
         int vWidth=Math.max(1,Math.round(width/s)),vHeight=Math.max(1,Math.round(height/s));
         var pose=g.pose();
@@ -365,19 +371,23 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
         int boxW=Math.min(vWidth-24,macroWorkspaceTab==3?706:640),boxH=Math.min(vHeight-24,macroWorkspaceTab==3?440:405);
         int boxX=(vWidth-boxW)/2,boxY=(vHeight-boxH)/2;
         DrainerSkin.surface(g,boxX,boxY,boxW,boxH,13,false);
+        // One restrained active-colour line: same visual language as the module dashboard.
+        g.fill(boxX+22,boxY+2,boxX+boxW-22,boxY+3,DrainerSkin.alpha(DrainerSkin.accent(),84));
         // Purposeful compact header: brand lockup, active tab pills and close.
-        rr(g,boxX+14,boxY+9,25,25,7,0xE02F2550);
+        DrainerSkin.control(g,boxX+14,boxY+9,25,25,true);
         txtS(g,"D",boxX+23,boxY+17,DrainerSkin.TEXT);
         txtS(g,"DRAINER",boxX+49,boxY+11,DrainerSkin.TEXT);
-        txt(g,"WORKSPACE",boxX+49,boxY+24,DrainerSkin.MUTED);
-        fill(g,boxX+15,boxY+40,boxX+boxW-15,boxY+41,DrainerSkin.DIVIDER);
+        txt(g,"WORKSPACE  /  "+MACRO_WORKSPACE_LABELS[Math.max(0,Math.min(3,macroWorkspaceTab))].toUpperCase(java.util.Locale.ROOT),
+            boxX+49,boxY+24,DrainerSkin.MUTED);
+        DrainerSkin.section(g,boxX+15,boxY+40,boxW-30);
         int tabW=Math.max(43,Math.min(67,(boxW-165)/4));
         int tabX=boxX+boxW-4*(tabW+4)-27;
         for(int i=0;i<4;i++) {
             int xx=tabX+i*(tabW+3);
             boolean active=macroWorkspaceTab==i;
             DrainerSkin.control(g,xx,boxY+10,tabW,23,active);
-            txt(g,new String[]{"Guides","Library","SkyBlock","Schems"}[i],xx+8,boxY+18,active?DrainerSkin.TEXT:DrainerSkin.SUBTEXT);
+            if (active) g.fill(xx+10,boxY+31,xx+tabW-10,boxY+32,DrainerSkin.alpha(DrainerSkin.accent(),185));
+            txt(g,MACRO_WORKSPACE_LABELS[i],xx+8,boxY+18,active?DrainerSkin.TEXT:DrainerSkin.SUBTEXT);
             macroGuideHits.add(new int[]{xx,boxY+10,tabW,23,-20-i});
         }
         int xClose=boxX+boxW-19;
@@ -413,8 +423,10 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
         for(int row=macroGuideScroll;row<indices.size()&&row<macroGuideScroll+rows;row++) {
             int i=indices.get(row),yy=paneY+7+(row-macroGuideScroll)*rowH;
             boolean selected=macroLibraryMode?i==macroTemplateSelected:i==macroGuideSelected;
-            if(selected) DrainerSkin.control(g,paneX+5,yy-1,paneW-10,rowH-3,true);
-            else fill(g,paneX+12,yy+rowH-2,paneX+paneW-12,yy+rowH-1,0x22493661);
+            if(selected) {
+                DrainerSkin.control(g,paneX+5,yy-1,paneW-10,rowH-3,true);
+                DrainerSkin.selectionMark(g,paneX+7,yy-1,rowH-3);
+            } else fill(g,paneX+12,yy+rowH-2,paneX+paneW-12,yy+rowH-1,0x22493661);
             String name=macroLibraryMode?presets.get(i).name():guides.get(i).name();
             while(name.length()>4&&font.width(name)>paneW-28)name=name.substring(0,name.length()-2);
             txt(g,name,paneX+13,yy+7,selected?DrainerSkin.TEXT:DrainerSkin.SUBTEXT);
@@ -434,7 +446,7 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
             txtS(g,name,tx,paneY+14,DrainerSkin.TEXT);
             txt(g,entry.saved()?"SAVED RECORDING":entry.group().toUpperCase(java.util.Locale.ROOT),
                 tx,paneY+34,0xFFC79BDD);
-            fill(g,tx,paneY+48,tx+maxWidth,paneY+49,0x8055386C);
+            DrainerSkin.section(g,tx,paneY+48,maxWidth);
             macroDetail(g,entry.detail(),tx,paneY+58,maxWidth,3);
             txt(g,""+library.durationTicks(entry.name())+" ticks  /  "+library.selectedSlot(),
                 tx,paneY+108,0xFFB59AC7);
@@ -470,7 +482,7 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
             while(name.length()>5&&font.width(name)>maxWidth)name=name.substring(0,name.length()-2);
             txtS(g,name,tx,paneY+13,DrainerSkin.TEXT);
             txt(g,entry.group().toUpperCase(java.util.Locale.ROOT),tx,paneY+33,DrainerSkin.accentText());
-            fill(g,tx,paneY+49,tx+maxWidth,paneY+50,0x8055386C);
+            DrainerSkin.section(g,tx,paneY+49,maxWidth);
             int yy=paneY+58;
             yy=macroTextBlock(g,"WHAT IT DOES",entry.what(),tx,yy,maxWidth);
             yy=macroTextBlock(g,"HOW IT WORKS",entry.how(),tx,yy,maxWidth);
@@ -484,11 +496,12 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
     private void skyBlockGuideDraw(GuiGraphicsExtractor g,int boxX,int boxY,int boxW,int boxH,int paneX,int paneY,int paneW,int paneH){
         var coach=com.lovenote.Lovenote.modules==null?null:com.lovenote.Lovenote.modules.get(com.lovenote.module.impl.SkyBlockCoach.class);
         if(coach==null)return;
-        String[] tracks={"START","LEVELS","GARDEN","MINING","COMBAT","COINS"};
+        String[] tracks=MACRO_SKYBLOCK_TRACKS;
         for(int i=0;i<tracks.length;i++){
             int yy=paneY+7+i*34;
             boolean active=coach.track().equals(tracks[i]);
             macroGlass(g,paneX+7,yy,paneW-14,29,6,active?0xB04F2A64:0x8830203E,active?0xA0AB80CD:0x3D55426F);
+            if (active) DrainerSkin.selectionMark(g,paneX+9,yy,29);
             txt(g,tracks[i],paneX+17,yy+9,active?0xFFFFECFF:DrainerSkin.SUBTEXT);
             macroGuideHits.add(new int[]{paneX+7,yy,paneW-14,29,-50-i});
         }
@@ -529,6 +542,7 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
             int yy=paneY+51+(j-schematicScroll)*29;
             String file=schematicFiles.get(j);
             macroGlass(g,paneX+6,yy,paneW-12,26,6,j==schematicSelected?0xA64F2862:0x99301F3D,0x474D3A70);
+            if (j==schematicSelected) DrainerSkin.selectionMark(g,paneX+8,yy,26);
             while(file.length()>8&&font.width(file)>paneW-25)file=file.substring(0,file.length()-2);
             txt(g,file,paneX+12,yy+8,DrainerSkin.TEXT);
             macroGuideHits.add(new int[]{paneX+6,yy,paneW-12,26,-1000-j});
@@ -1813,7 +1827,7 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
         final String activeLabel = activeCount + " ENABLED";
         final int pillW = Math.max(79, font.width(activeLabel) + 24);
         final int pillX = closeX - pillW - 10;
-        rr(ctx, pillX, wy + 20, pillW, 25, 11, 0x88352A51);
+        rr(ctx, pillX, wy + 20, pillW, 25, 12, 0x7F312948);
         float badgePulse = (float)(0.5 + 0.5 * Math.sin(System.nanoTime() * 1e-9 * 1.8));
         circle(ctx, pillX + 12, wy + 32, 4,
                 LovenotePalette.alpha(accent, activeCount > 0 ? 24 + Math.round(18 * badgePulse) : 13));
@@ -1874,8 +1888,8 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
         final String title = query.isEmpty() ? pageLabel(page) : "Search results";
         final int count = visibleModules(query).size();
         // V25.9: layered command deck, not a large labelled rectangle.
-        rr(ctx, cx, headY + 1, contentW, 59, 15, 0x641D2238);
-        rr(ctx, cx + 1, headY + 2, contentW - 2, 57, 14, 0xB51A1F31);
+        rr(ctx, cx, headY + 2, contentW, 57, 17, 0x5C171C30);
+        rr(ctx, cx + 1, headY + 3, contentW - 2, 55, 16, 0xB6191F31);
         fill(ctx, cx + 18, headY + 3, cx + contentW - 18, headY + 4, 0x21FFFFFF);
         float barPulse = (float)(0.5 + 0.5 * Math.sin(System.nanoTime() * 8.0e-10));
         rr(ctx, cx + 14, headY + 14, 3, 30, 2,
@@ -1893,9 +1907,9 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
         final int searchX = contentRight - searchW - 10;
         final int searchY = headY + 15;
         float searchGlow = ease("v254-search-focus", searchFocused ? 1f : 0f, 190);
-        rr(ctx, searchX, searchY, searchW, 30, 11,
-                LovenotePalette.lerp(0x42576288, LovenotePalette.alpha(accent, 175), searchGlow));
-        rr(ctx, searchX + 1, searchY + 1, searchW - 2, 28, 10, 0xBA161D2C);
+        rr(ctx, searchX, searchY, searchW, 30, 13,
+                LovenotePalette.lerp(0x3F4E6D86, LovenotePalette.alpha(accent, 170), searchGlow));
+        rr(ctx, searchX + 1, searchY + 1, searchW - 2, 28, 12, 0xC0161C2C);
         fill(ctx, searchX + 10, searchY + 2, searchX + searchW - 10, searchY + 3, 0x16FFFFFF);
         String searchValue = searchText.isEmpty() && !searchFocused ? "Search modules..." : trim(searchText, searchW - 29);
         txt(ctx, searchValue, searchX + 11, searchY + 11, searchText.isEmpty() ? muted : ink);
@@ -1918,30 +1932,33 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
                 drawConfigHub(ctx, cx, moonContentTop, areaW, bottom);
         }
 
-        // Pinned workflow buttons preserve the old K_GUIDE/K_EDITOR actions.
-        fill(ctx, left, wy + winH - 58, right, wy + winH - 57, 0x2C5E6387);
+        // Pinned workflow buttons: slimmer pills with lighter chrome and hover lift.
+        fill(ctx, left, wy + winH - 58, right, wy + winH - 57, 0x24556482);
         int dockY = wy + winH - 46;
-        float guideHover = ease("v254-guide", interactive && mx >= left && mx < left + 111
-                && my >= dockY && my < dockY + 29 ? 1f : 0f, 160);
-        rr(ctx, left, dockY, 111, 29, 11,
-                LovenotePalette.lerp(0x9F232B3E, 0xCC363252, guideHover));
-        txtS(ctx, "Macro Guide", left + 13, dockY + 12, 0xFFE4DDF1);
-        addHit(left, dockY, 111, 29, K_GUIDE, null, null, 0);
-        float schematicHover = ease("v254-schems", interactive && mx >= left + 119 && mx < left + 226
-                && my >= dockY && my < dockY + 29 ? 1f : 0f, 160);
-        rr(ctx, left + 119, dockY, 107, 29, 11,
-                LovenotePalette.lerp(0xA6383055, 0xD14F3D72, schematicHover));
-        txtS(ctx, "Schematics", left + 130, dockY + 12, 0xFFF3E9FF);
-        addHit(left + 119, dockY, 107, 29, K_GUIDE, null, null, 3);
-        float hudHover = ease("v254-hud", interactive && mx >= left + 234 && mx < left + 333
-                && my >= dockY && my < dockY + 29 ? 1f : 0f, 160);
-        rr(ctx, left + 234, dockY, 99, 29, 11,
-                LovenotePalette.lerp(0x9F232B3E, 0xCC363252, hudHover));
-        txtS(ctx, "HUD Editor", left + 246, dockY + 12, 0xFFE4DDF1);
-        addHit(left + 234, dockY, 99, 29, K_EDITOR, null, null, 0);
+        float guideHover = ease("v264-guide", interactive && mx >= left && mx < left + 110
+                && my >= dockY && my < dockY + 28 ? 1f : 0f, 150);
+        rr(ctx, left, dockY + 1, 110, 27, 13, LovenotePalette.alpha(0x04060B, 62 + Math.round(20 * guideHover)));
+        rr(ctx, left, dockY, 110, 27, 13, LovenotePalette.lerp(0xAA222A3C, 0xC3343151, guideHover));
+        fill(ctx, left + 12, dockY + 2, left + 98, dockY + 3, LovenotePalette.alpha(0xFFFFFF, 18 + Math.round(18 * guideHover)));
+        txtS(ctx, "Macro Guide", left + 14, dockY + 11, 0xFFE6DFF5);
+        addHit(left, dockY, 110, 27, K_GUIDE, null, null, 0);
+        float schematicHover = ease("v264-schems", interactive && mx >= left + 118 && mx < left + 226
+                && my >= dockY && my < dockY + 28 ? 1f : 0f, 150);
+        rr(ctx, left + 118, dockY + 1, 108, 27, 13, LovenotePalette.alpha(0x04060B, 64 + Math.round(22 * schematicHover)));
+        rr(ctx, left + 118, dockY, 108, 27, 13, LovenotePalette.lerp(0xB02D2847, 0xCF453B69, schematicHover));
+        fill(ctx, left + 130, dockY + 2, left + 214, dockY + 3, LovenotePalette.alpha(0xFFFFFF, 18 + Math.round(18 * schematicHover)));
+        txtS(ctx, "Schematics", left + 131, dockY + 11, 0xFFF4EAFF);
+        addHit(left + 118, dockY, 108, 27, K_GUIDE, null, null, 3);
+        float hudHover = ease("v264-hud", interactive && mx >= left + 234 && mx < left + 336
+                && my >= dockY && my < dockY + 28 ? 1f : 0f, 150);
+        rr(ctx, left + 234, dockY + 1, 102, 27, 13, LovenotePalette.alpha(0x04060B, 62 + Math.round(20 * hudHover)));
+        rr(ctx, left + 234, dockY, 102, 27, 13, LovenotePalette.lerp(0xAA222A3C, 0xC3343151, hudHover));
+        fill(ctx, left + 246, dockY + 2, left + 324, dockY + 3, LovenotePalette.alpha(0xFFFFFF, 18 + Math.round(18 * hudHover)));
+        txtS(ctx, "HUD Editor", left + 248, dockY + 11, 0xFFE6DFF5);
+        addHit(left + 234, dockY, 102, 27, K_EDITOR, null, null, 0);
         String stats = mc.getFps() + " FPS  /  " + activeCount + " ON";
-        if (right - font.width(stats) > left + 345)
-            txt(ctx, stats, right - font.width(stats) - 2, dockY + 12, muted);
+        if (right - font.width(stats) > left + 350)
+            txt(ctx, stats, right - font.width(stats) - 2, dockY + 11, muted);
     }
 
     private int selectedCount() {
@@ -1979,9 +1996,8 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
                                  int left, int top, int areaW, int bottom,
                                  String q, boolean interactive) {
         List<Row> list = visibleModules(q);
-        final int gap = 8, rowH = 49;
-        final int columns = selected == null && areaW >= 720 ? 3
-                : selected == null && areaW >= 415 ? 2 : 1;
+        final int gap = 10, rowH = 58;
+        final int columns = selected == null && areaW >= 500 ? 2 : 1;
         final int tileW = Math.max(100, (areaW - gap * (columns - 1)) / columns);
         final int rows = (list.size() + columns - 1) / columns;
         maxScroll = Math.max(0, rows * (rowH + gap) - gap - (bottom - top));
@@ -1990,7 +2006,7 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
                 * (1f - (float) Math.exp(-Math.max(0f, dt) / 65f));
         if (Math.abs(scrollShown - scrollTarget) < 0.2f) scrollShown = scrollTarget;
 
-        ctx.enableScissor(left - 1, top - 1, left + areaW + 2, bottom);
+        ctx.enableScissor(left - 2, top - 2, left + areaW + 4, bottom + 1);
         for (int i = 0; i < list.size(); i++) {
             Row m = list.get(i);
             int x = left + (i % columns) * (tileW + gap);
@@ -1999,82 +2015,87 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
             boolean active = m.active(), focus = selected == m, unported = v24IsUnported(m);
             boolean hovered = interactive && mx >= x && mx < x + tileW
                     && my >= y && my < y + rowH && my >= top && my < bottom;
-            // Stable hitboxes, but spring-soft visual motion in fractional pixels.
-            float hover = ease("v24-hover:" + m.title(), hovered ? 1f : 0f, 185);
-            float on = ease("v24-on:" + m.title(), active ? 1f : 0f, 205);
-            float glow = Math.max(hover, focus ? 0.67f : on * 0.40f);
+
+            float hover = ease("v264-hover:" + m.title(), hovered ? 1f : 0f, 175);
+            float on = ease("v264-on:" + m.title(), active ? 1f : 0f, 205);
+            float focusT = ease("v264-focus:" + m.title(), focus ? 1f : 0f, 190);
+            float glow = Math.max(hover * 0.90f, Math.max(focusT * 0.90f, on * 0.50f));
             final int accent = LovenotePalette.C2;
-            // A short stagger when changing categories; only visible cards are drawn.
-            float arrive = Mth.clamp((tabMs - (i % 12) * 17f) / 205f, 0f, 1f);
+
+            float arrive = Mth.clamp((tabMs - (i % 10) * 16f) / 205f, 0f, 1f);
             float reveal = arrive * arrive * (3f - 2f * arrive);
-            float hSmooth = hover * hover * (3f - 2f * hover);
-            float shift = (1f - reveal) * 5.0f - 2.65f * hSmooth;
-            boolean translated = Math.abs(shift) > 0.02f;
-            if (translated) { ctx.pose().pushMatrix(); ctx.pose().translate(0f, shift); }
+            float smoothHover = hover * hover * (3f - 2f * hover);
+            float lift = (1f - reveal) * 5.0f - 2.10f * smoothHover - 1.15f * focusT;
+            boolean translated = Math.abs(lift) > 0.02f;
+            if (translated) { ctx.pose().pushMatrix(); ctx.pose().translate(0f, lift); }
 
-            // One offset depth layer, a fine chrome edge and a translucent body.
-            // This is intentionally GPU-cheap compared with a stack of bloom passes.
-            rr(ctx, x + 1, y + 3, tileW - 2, rowH - 1, 12,
-                    LovenotePalette.alpha(0x060712, 65 + Math.round(35 * hover)));
-            rr(ctx, x, y, tileW, rowH, 12,
-                    LovenotePalette.lerp(0x57636C92,
-                            LovenotePalette.alpha(accent, 162), Math.max(hover * 0.88f, focus ? 0.85f : 0f)));
-            rr(ctx, x + 1, y + 1, tileW - 2, rowH - 2, 11,
-                    LovenotePalette.lerp(active ? 0xE51A2036 : 0xDB151B2B,
-                            0xE82D2B49, hover * 0.93f));
-            fill(ctx, x + 14, y + 2, x + tileW - 14, y + 3,
-                    LovenotePalette.alpha(0xF8EFFF, 22 + Math.round(41 * glow)));
-            if (glow > 0.012f) {
-                fill(ctx, x + 2, y + 12, x + 4, y + rowH - 12,
-                        LovenotePalette.alpha(accent, Math.round(188 * glow)));
+            int edgeColor = LovenotePalette.lerp(0x45516786,
+                    LovenotePalette.alpha(accent, 176), Math.max(glow, focusT * 0.95f));
+            int bodyColor = LovenotePalette.lerp(active ? 0xE1171E31 : 0xDA13192A,
+                    active ? 0xEA1A2036 : 0xE4182031,
+                    0.32f + hover * 0.28f + focusT * 0.12f);
+
+            rr(ctx, x + 1, y + 5, tileW - 2, rowH - 2, 17,
+                    LovenotePalette.alpha(0x060914, 72 + Math.round(28 * glow)));
+            rr(ctx, x, y + 1, tileW, rowH - 1, 17, edgeColor);
+            rr(ctx, x + 1, y + 2, tileW - 2, rowH - 3, 16, bodyColor);
+            fill(ctx, x + 18, y + 4, x + tileW - 18, y + 5,
+                    LovenotePalette.alpha(0xFFFFFF, 18 + Math.round(26 * glow)));
+            fill(ctx, x + 14, y + rowH - 6, x + tileW - 14, y + rowH - 5,
+                    LovenotePalette.alpha(0x7F8FC3, 11 + Math.round(17 * hover)));
+            if (glow > 0.01f) {
+                rr(ctx, x + 8, y + 14, 3, rowH - 28, 2,
+                        LovenotePalette.alpha(accent, 112 + Math.round(72 * glow)));
             }
-            if (hover > 0.04f) {
-                float sweep = (float)(0.5 + 0.5 * Math.sin(System.nanoTime() * 1.6e-9));
-                int span = Math.max(1, tileW - 80);
-                int shineX = x + 16 + Math.round(span * sweep);
-                fill(ctx, shineX, y + 2, Math.min(x + tileW - 14, shineX + 23), y + 3,
-                        LovenotePalette.alpha(LovenotePalette.C3, Math.round(112 * hover)));
+            if (hover > 0.05f) {
+                float sweep = (float) (0.5 + 0.5 * Math.sin(System.nanoTime() * 1.55e-9 + i * 0.35));
+                int span = Math.max(1, tileW - 132);
+                int shineX = x + 34 + Math.round(span * sweep);
+                fill(ctx, shineX, y + 4, Math.min(x + tileW - 24, shineX + 24), y + 5,
+                        LovenotePalette.alpha(LovenotePalette.C3, Math.round(108 * hover)));
             }
-            // Minimal glyph on an inset lit plate. The plate shares the card's palette.
-            rr(ctx, x + 11, y + 11, 27, 27, 9,
-                    LovenotePalette.lerp(0x6E343B56,
-                            LovenotePalette.alpha(accent, 133), Math.max(on, hover * 0.78f)));
+
+            int plateX = x + 16, plateY = y + 13, plateW = 40, plateH = 32;
+            rr(ctx, plateX, plateY, plateW, plateH, 12,
+                    LovenotePalette.lerp(0x73323A58,
+                            LovenotePalette.alpha(accent, 144), Math.max(on * 0.86f, hover * 0.58f)));
+            rr(ctx, plateX + 1, plateY + 1, plateW - 2, plateH - 2, 11,
+                    LovenotePalette.lerp(0xDE1A2234, 0xEB1F2741, hover * 0.70f));
             String glyph = shortModuleMark(m.title());
-            txt(ctx, glyph, x + 25 - font.width(glyph) / 2, y + 20,
-                    active ? 0xFFF9F5FF : 0xFFE5E8F5);
+            txtS(ctx, glyph, plateX + plateW / 2 - font.width(glyph) / 2, plateY + 11,
+                    active ? 0xFFF7F2FF : 0xFFE2E7F5);
 
-            final int textX = x + 49;
-            final int textWidth = Math.max(38, tileW - 104);
-            txtS(ctx, trim(m.title(), textWidth), textX, y + 9,
-                    active ? 0xFFFFFFFF : 0xFFF5F5FD);
+            final int textX = x + 70;
+            final int titleWidth = Math.max(30, tileW - 150);
+            txtS(ctx, trim(m.title(), titleWidth), textX, y + 12,
+                    active ? 0xFFFFFFFF : 0xFFF2F4FB);
             String description = unported ? "NOT PORTED TO 26.2" : m.description();
-            txt(ctx, trim(description, Math.max(32, tileW - 105)), textX, y + 29,
-                    unported ? 0xFFF4B997 : 0xFFAFBBD3);
-            if (unported) {
-                txt(ctx, "!", x + tileW - 20, y + 12, 0xFFFFC5A1);
-            } else {
-                int sx = x + tileW - 39, sy = y + 11;
-                rr(ctx, sx, sy, 27, 13, 7,
-                        LovenotePalette.lerp(0x8B3A4158, LovenotePalette.alpha(accent, 194), on));
-                rr(ctx, sx + 1, sy + 1, 25, 11, 6,
-                        LovenotePalette.lerp(0xC51B2535, LovenotePalette.alpha(accent, 133), on));
-                rr(ctx, sx + 3 + Math.round(on * 12f), sy + 3, 7, 7, 4, 0xFFF7F4FF);
-            }
-            if (translated) ctx.pose().popMatrix();
+            txt(ctx, trim(description, Math.max(28, tileW - 152)), textX, y + 33,
+                    unported ? 0xFFF1BB96 : 0xFFAFB8CE);
 
-            // Hitboxes remain at the original card position. Partial cards are
-            // clipped visually and never receive offscreen mouse interactions.
+            int sx = x + tileW - 48, sy = y + 20;
+            if (unported) {
+                txt(ctx, "!", x + tileW - 23, y + 16, 0xFFFFC5A1);
+            } else {
+                rr(ctx, sx, sy, 32, 16, 8,
+                        LovenotePalette.lerp(0x8A343B52, LovenotePalette.alpha(accent, 196), on));
+                rr(ctx, sx + 1, sy + 1, 30, 14, 7,
+                        LovenotePalette.lerp(0xD4171D2E, 0xD81E233A, 0.35f + hover * 0.25f));
+                rr(ctx, sx + 3 + Math.round(on * 14f), sy + 3, 10, 10, 5, 0xFFF7F4FF);
+            }
+
+            if (translated) ctx.pose().popMatrix();
             if (y >= top && y + rowH <= bottom) {
                 addHit(x, y, tileW, rowH, K_CARD, m, null, 0);
-                if (!unported) addHit(x + tileW - 39, y + 6, 35, 20, K_SWITCH, m, null, 0);
+                if (!unported) addHit(x + tileW - 50, y + 13, 40, 24, K_SWITCH, m, null, 0);
             }
         }
         ctx.disableScissor();
         scrollbar(ctx, left + areaW + 4, top, bottom, scrollShown, maxScroll);
         if (list.isEmpty()) {
-            rr(ctx, left, top, areaW, Math.min(bottom - top, 112), 11, 0xCC1A2130);
-            txtS(ctx, "NO MATCHES", left + 17, top + 19, 0xFFECE5FB);
-            txt(ctx, "Try a different module name or category", left + 17, top + 44, 0xFF929BB1);
+            rr(ctx, left, top, areaW, Math.min(bottom - top, 116), 16, 0xCC171D2E);
+            txtS(ctx, "NO MATCHES", left + 18, top + 21, 0xFFF1E9FE);
+            txt(ctx, "Try a different module name or category", left + 18, top + 47, 0xFF9BA5BD);
         }
     }
 
@@ -2539,8 +2560,7 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
     }
 
     private void configButton(GuiGraphicsExtractor ctx, int x, int y, int w, int h, String label, int id) {
-        rr(ctx, x, y, w, h, 7, LovenotePalette.alpha(LovenotePalette.C2, 65));
-        rr(ctx, x + 1, y + 1, w - 2, h - 2, 6, LovenotePalette.card());
+        DrainerSkin.control(ctx, x, y, w, h, false);
         txt(ctx, trim(label, w - 14), x + 8, y + (h - 8) / 2, LovenotePalette.text());
         addHit(x, y, w, h, K_CONFIG, null, null, id);
     }
@@ -2664,6 +2684,7 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
     private void drawAppearanceWorkspace(GuiGraphicsExtractor g,int x,int top,int width,int bottom) {
         int left=x+8,right=x+width-10;
         txt(g,"CUSTOMISE DRAINER",left,top+5,LovenotePalette.text());
+        DrainerSkin.section(g,left,top+17,Math.max(25,right-left));
         String[] tabs={"Colours","Glass","Motion","Typography"};
         int tabW=Math.max(61,Math.min(112,(right-left-18)/4));
         for(int i=0;i<tabs.length;i++){

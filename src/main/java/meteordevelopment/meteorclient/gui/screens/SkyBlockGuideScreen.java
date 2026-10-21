@@ -82,13 +82,13 @@ public final class SkyBlockGuideScreen extends Screen {
         g.pose().pushMatrix();g.pose().scale(scale,scale);
         // Opaque near-black background keeps the standalone guide distinct from the module grid.
         DrainerSkin.surface(g,x,y,W,H,13,false);
-        rect(g,24,1,W-48,1,DrainerSkin.alpha(DrainerSkin.accent(),110));
+        rect(g,24,1,W-48,1,DrainerSkin.alpha(DrainerSkin.accent(),85));
         DrainerSkin.control(g,x+22,y+15,29,29,true);
         txt(g,"S",32,25,DrainerSkin.TEXT);
         txt(g,"SKYBLOCK",62,18,DrainerSkin.TEXT);
         txt(g,"DRAINER  /  PROGRESSION COMPANION",62,37,DrainerSkin.MUTED);
         button(g,W-99,17,73,"BACK",-1,false);
-        rect(g,20,61,W-40,1,DrainerSkin.DIVIDER);
+        DrainerSkin.section(g,x+20,y+61,W-40);
         SkyBlockCoach c=coach();
         if(c==null){txt(g,"SkyBlockCoach is unavailable. Check the module installation.",30,92,0xFFFF9F9F);g.pose().popMatrix();return;}
         var step=c.current();
@@ -98,13 +98,15 @@ public final class SkyBlockGuideScreen extends Screen {
         for(int i=0;i<TRACKS.length;i++){
             boolean chosen=TRACKS[i].equals(c.track());
             button(g,23,119+i*43,135,TRACKS[i],i,chosen);
+            if (chosen) DrainerSkin.selectionMark(g,x+25,y+119+i*43,28);
         }
         button(g,23,371,135,gardenFocus?"RETURN TO LIVE":"GARDEN PLAYBOOK",-10,gardenFocus);
         button(g,23,408,135,c.benchmarkRemaining()>=0?"RESET TEST":"START 5M TEST",-11,false);
         // CENTER: big readable current objective
         box(g,181,74,424,376,0xFF151121,0xFF614477);
         txt(g,"CURRENT OBJECTIVE   /   "+c.track(),198,89,DrainerSkin.accentText());
-        rect(g,198,109,388,4,DrainerSkin.DIVIDER);
+        rect(g,198,103,388,1,0x225D6788);
+        rect(g,198,109,388,4,0x385D6788);
         int pw=(int)(388*c.completedTrack()/(float)Math.max(1,c.trackCount()));
         rect(g,198,109,pw,4,DrainerSkin.accent());
         int ty=133;
