@@ -1430,14 +1430,14 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
         if (w < 10) return;
         t = Mth.clamp(t, 0f, 1f);
         int sy = y + 16;
-        // Preserve the original slider value geometry, dragging and hitboxes.
+        // V28: slim glass track with a small readable thumb. Value mapping
+        // and the 13px input hitbox are unchanged from V27.9.
         int fx = x + Math.round((w - 1) * t);
-        rr(ctx, x, sy, w, 2, 1, 0xA842425F);
+        rr(ctx, x, sy, w, 2, 1, 0x84525B77);
         if (fx > x) rr(ctx, x, sy, Math.max(2, fx - x), 2, 1,
-                LovenotePalette.alpha(LovenotePalette.C2, 220));
-        // Small rail-aligned thumb instead of a chunky rounded-square control.
-        rr(ctx, Mth.clamp(fx - 3, x + 1, x + w - 7), sy - 4,
-                6, 10, 3, 0xFFF1EEFC);
+                LovenotePalette.alpha(LovenotePalette.C2, 209));
+        int handleX = Mth.clamp(fx - 3, x + 1, x + w - 7);
+        rr(ctx, handleX, sy - 4, 6, 10, 3, 0xFFEFF4FF);
     }
 
     private void chipsMulti(GuiGraphicsExtractor ctx, com.lovenote.setting.MultiSetting ms, int x, int y, int w, Row owner) {
@@ -1446,12 +1446,14 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
             for (int i = 0; i < ms.names.length; i++) {
                 int rx = x + (i % 2) * (cellW + 7), ry = y + (i / 2) * 20;
                 float t = ease(ms.hashCode() + ":" + i, ms.get(i) ? 1f : 0f, 150);
-                rr(ctx, rx, ry, cellW, 17, 7,
-                        LovenotePalette.lerp(0x4829293F,
-                                LovenotePalette.alpha(LovenotePalette.C2, 116), t));
-                if (t > 0.03f) fill(ctx, rx + 1, ry + 4, rx + 3, ry + 13,
-                        LovenotePalette.alpha(LovenotePalette.C3, Math.round(158 * t)));
-                txt(ctx, trim(ms.names[i], cellW - 13), rx + 7, ry + 5,
+                int idleAlpha = Mth.clamp(Math.round(45f *
+                        LovenoteMenuConfig.opacity / 100f), 9, 45);
+                rr(ctx, rx, ry, cellW, 17, 6,
+                        LovenotePalette.lerp(LovenotePalette.alpha(0x252B41, idleAlpha),
+                                LovenotePalette.alpha(LovenotePalette.C2, 115), t));
+                if (t > 0.03f) fill(ctx, rx + 2, ry + 5, rx + 4, ry + 12,
+                        LovenotePalette.alpha(LovenotePalette.C3, Math.round(166 * t)));
+                txt(ctx, trim(ms.names[i], cellW - 16), rx + 9, ry + 5,
                         LovenotePalette.lerp(LovenotePalette.dim(), LovenotePalette.text(), t));
                 addHit(rx, ry, cellW, 17, K_MULTI, owner, ms, i);
             }
@@ -1477,12 +1479,14 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
             for (int i = 0; i < names.length; i++) {
                 int rx = x + (i % 2) * (cellW + 7), ry = y + (i / 2) * 20;
                 float t = ease(set.hashCode() + ":" + i, i == active ? 1f : 0f, 150);
-                rr(ctx, rx, ry, cellW, 17, 7,
-                        LovenotePalette.lerp(0x4829293F,
-                                LovenotePalette.alpha(LovenotePalette.C2, 116), t));
-                if (t > 0.03f) fill(ctx, rx + 1, ry + 4, rx + 3, ry + 13,
-                        LovenotePalette.alpha(LovenotePalette.C3, Math.round(158 * t)));
-                txt(ctx, trim(names[i], cellW - 13), rx + 7, ry + 5,
+                int idleAlpha = Mth.clamp(Math.round(45f *
+                        LovenoteMenuConfig.opacity / 100f), 9, 45);
+                rr(ctx, rx, ry, cellW, 17, 6,
+                        LovenotePalette.lerp(LovenotePalette.alpha(0x252B41, idleAlpha),
+                                LovenotePalette.alpha(LovenotePalette.C2, 115), t));
+                if (t > 0.03f) fill(ctx, rx + 2, ry + 5, rx + 4, ry + 12,
+                        LovenotePalette.alpha(LovenotePalette.C3, Math.round(166 * t)));
+                txt(ctx, trim(names[i], cellW - 16), rx + 9, ry + 5,
                         LovenotePalette.lerp(LovenotePalette.dim(), LovenotePalette.text(), t));
                 addHit(rx, ry, cellW, 17, kind, owner, set, i);
             }
@@ -2024,11 +2028,15 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
         final int workRight = dockInspector ? premiumSettingsX() - 12 : contentRight;
         final int workW = Math.max(125, workRight - cx);
 
-        // V27.8: one continuous, thin library masthead instead of a category pill.
+        // V28: one unified glass masthead. Its glass opacity follows Appearance,
+        // while text and the active accent remain readable at low opacity.
         final int heroH = 58;
-        rr(ctx, cx, heroY, workW, heroH, 11, 0x5D202039);
-        fill(ctx, cx + 14, heroY + 9, cx + 17, heroY + heroH - 10,
-                LovenotePalette.alpha(accent, 191));
+        final int heroGlass = Mth.clamp(Math.round(78f *
+                LovenoteMenuConfig.opacity / 100f), 19, 78);
+        rr(ctx, cx, heroY, workW, heroH, 10,
+                LovenotePalette.alpha(0x202039, heroGlass));
+        fill(ctx, cx + 14, heroY + 12, cx + 16, heroY + heroH - 13,
+                LovenotePalette.alpha(accent, 146));
         txt(ctx, query.isEmpty() ? "DRAINER   /   LIBRARY" : "DRAINER   /   SEARCH",
                 cx + 27, heroY + 9, 0xFFAAA6C4);
         String heroTitle = title.toUpperCase(java.util.Locale.ROOT);
@@ -2180,8 +2188,12 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
                 * (1f - (float) Math.exp(-Math.max(0f, dt) / 65f));
         if (Math.abs(scrollShown - scrollTarget) < 0.2f) scrollShown = scrollTarget;
 
-        // A single tinted library canvas takes the place of one box per module.
-        rr(ctx, left, top, areaW, Math.max(0, bottom - top), 13, 0x66131629);
+        // V28: a shared, opacity-aware surface instead of a stack of card fills.
+        // At minimum opacity the world remains visible behind the library.
+        final int libraryAlpha = Mth.clamp(Math.round(83f *
+                LovenoteMenuConfig.opacity / 100f), 13, 83);
+        rr(ctx, left, top, areaW, Math.max(0, bottom - top), 12,
+                LovenotePalette.alpha(0x131629, libraryAlpha));
         ctx.enableScissor(left, top, left + areaW, bottom);
         for (int i = 0; i < list.size(); i++) {
             Row m = list.get(i);
@@ -2198,49 +2210,49 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
             final int accent = LovenotePalette.C2;
             final float intensity = Math.max(focus, hover * 0.70f);
 
-            // Fine editorial highlight; no card outline or giant filled pill.
+            // V28 editorial selection: a soft focus strip, a hairline edge,
+            // and no opaque box painted behind every module.
             if (intensity > 0.01f) {
-                rr(ctx, x + 3, y + 3, tileW - 6, rowH - 7, 8,
-                        LovenotePalette.alpha(accent, Math.round(10 + 32 * intensity)));
-                fill(ctx, x + 3, y + 12, x + 5, y + rowH - 13,
-                        LovenotePalette.alpha(accent, Math.round(92 + 137 * intensity)));
+                rr(ctx, x + 2, y + 4, tileW - 4, rowH - 9, 7,
+                        LovenotePalette.alpha(accent, Math.round(7 + 23 * intensity)));
+                fill(ctx, x + 3, y + 13, x + 5, y + rowH - 14,
+                        LovenotePalette.alpha(accent, Math.round(62 + 162 * intensity)));
             }
-            // Dividers connect all rows in the grid into a deliberate workspace.
+            // A unified grid rhythm, even when the glass surface is transparent.
             if (y + rowH <= bottom + 1) {
-                fill(ctx, x + 18, y + rowH - 1, x + tileW - 18, y + rowH,
-                        0x29575B79);
+                fill(ctx, x + 20, y + rowH - 1, x + tileW - 20, y + rowH,
+                        0x1C8D92B4);
             }
 
-            // An unboxed pictogram is the visual anchor, with an accent halo only
-            // for enabled or selected modules. Icons remain Minecraft-safe vectors.
-            int iconX = x + 25, iconY = y + 23;
+            // The existing native pictograms stay sharp and texture-free.
+            final int iconX = x + 24, iconY = y + 24;
             if (enabled > 0.01f || focus > 0.01f) {
-                circle(ctx, iconX, iconY, 13,
+                circle(ctx, iconX, iconY, 12,
                         LovenotePalette.alpha(accent,
-                                Math.round(17 + 55 * Math.max(enabled, focus))));
+                                Math.round(12 + 36 * Math.max(enabled, focus))));
             }
             drawPremiumModuleIcon(ctx, iconX, iconY, m.title(),
-                    active || focused ? 0xFFF5EEFF : 0xFF979AB8);
+                    active || focused ? 0xFFF4F7FF : 0xFF959EB9);
 
-            int textX = x + 46;
-            int textW = Math.max(22, tileW - 106);
-            txtBoldScaled(ctx, trim(m.title(), Math.max(20, (int)(textW / 1.10f))),
-                    textX, y + 10, 1.10f,
-                    active ? 0xFFFFFFFF : hovered ? 0xFFF6F2FF : 0xFFE8E8F3);
-            String detail = unported ? "NOT PORTED TO 26.2" : m.description();
-            txt(ctx, trim(detail, textW), textX, y + 32,
-                    unported ? 0xFFF0B599 : 0xFF9698B3);
+            final int textX = x + 46;
+            final int textW = Math.max(22, tileW - 106);
+            txtBoldScaled(ctx, trim(m.title(), Math.max(20, (int)(textW / 1.13f))),
+                    textX, y + 9, 1.13f,
+                    active ? 0xFFFFFFFF : hovered ? 0xFFF5F7FF : 0xFFE4E9F5);
+            final String detail = unported ? "NOT PORTED TO 26.2" : m.description();
+            txt(ctx, trim(detail, textW), textX, y + 31,
+                    unported ? 0xFFF0B599 : 0xFF9EA9C3);
 
             final int sx = x + tileW - 38, sy = y + 19;
             if (unported) {
                 txt(ctx, "!", sx + 12, y + 19, 0xFFF7BCA6);
             } else {
-                // One continuous switch track, with an actual animated knob.
+                // Same hitbox and animation clock, with a lighter off state.
                 rr(ctx, sx, sy, 29, 15, 8,
-                        LovenotePalette.lerp(0xB52F3047,
-                                LovenotePalette.alpha(accent, 183), enabled));
+                        LovenotePalette.lerp(0x9B343A53,
+                                LovenotePalette.alpha(accent, 178), enabled));
                 circle(ctx, sx + 7 + Math.round(enabled * 14f), sy + 7, 5,
-                        LovenotePalette.lerp(0xFFBDBBD1, 0xFFFFFFFF, enabled));
+                        LovenotePalette.lerp(0xFFBFC8DC, 0xFFFFFFFF, enabled));
             }
 
             // Keep exact logical rows stationary while all visual states animate.
@@ -3310,7 +3322,7 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
         // V27.9: The inspector must obey the same menu opacity as its window.
         // A low-opacity, airy glass UI is a supported look, not a rendering bug.
         final int inspectorAlpha = moon
-                ? Mth.clamp(Math.round(236f * LovenoteMenuConfig.opacity / 100f), 83, 236)
+                ? Mth.clamp(Math.round(222f * LovenoteMenuConfig.opacity / 100f), 48, 222)
                 : 236;
         rr(ctx, px, py, pw, ph, frameRadius,
                 LovenotePalette.alpha(0x111122, inspectorAlpha));
@@ -3325,7 +3337,7 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
             return;
         }
 
-        txt(ctx, "INSPECTOR   /   MODULE", px + 17, py + 10, 0xFFABA7C2);
+        txt(ctx, "MODULE   /   LIVE SETTINGS", px + 17, py + 10, 0xFFABB9D0);
         txtBoldScaled(ctx, trim(m.title(), Math.max(28, (int)((pw - 112) / 1.48f))),
                 px + 17, py + 25, 1.48f, 0xFFFAF8FF);
         String stateLabel = m.active() ? "ACTIVE" : "INACTIVE";
@@ -3341,7 +3353,7 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
         txt(ctx, "x", px + pw - 23, py + 27, 0xFFEADFF7);
         addHit(px + pw - 30, py + 20, 21, 23, K_PCLOSE, m, null, 0);
         fill(ctx, px + 16, py + 78, px + pw - 16, py + 79,
-                LovenotePalette.alpha(0x77718E, Math.min(48, inspectorAlpha / 5)));
+                LovenotePalette.alpha(0x777EAB, Math.min(48, inspectorAlpha / 5)));
 
         final int top = py + 84, bottom = py + ph - 10;
         final int settingW = pw - 32;
@@ -3359,7 +3371,7 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
             boolean any = false;
             for (Object st : group.settings()) if (rowH(st, settingW) > 0) { any = true; break; }
             if (!any) continue;
-            if (!first) fill(ctx, px + 18, y, px + pw - 18, y + 1, 0x209D96C4);
+            if (!first) fill(ctx, px + 18, y, px + pw - 18, y + 1, 0x188AA0C4);
             first = false;
             y += 8;
             rr(ctx, px + 16, y, 2, 12, 1, LovenotePalette.alpha(accent, 194));
