@@ -1983,21 +1983,22 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
         final int workW = Math.max(125, workRight - cx);
         final int heroH = 64;
 
-        // V27: compact editorial heading rather than an oversized blank banner.
-        rr(ctx, cx, heroY, workW, heroH, 13, 0xEF171329);
-        fill(ctx, cx + 14, heroY + 12, cx + 17, heroY + 52,
-                LovenotePalette.alpha(accent, 196));
-        fill(ctx, cx + 28, heroY + 1, cx + Math.min(workW - 25, 148), heroY + 2,
-                LovenotePalette.alpha(accent, 67));
-        txt(ctx, "WORKSPACE   /   " + (query.isEmpty() ? "MODULE LIBRARY" : "SEARCH"),
-                cx + 27, heroY + 9, 0xFFAAA4C2);
-        txtBoldScaled(ctx, trim(title, Math.max(48, (int)((workW - 55) / 1.57f))),
-                cx + 26, heroY + 24, 1.54f, 0xFFF6F2FF);
+        // V27.4: editorial command deck inspired by the Claude prototype.
+        // One glass surface, not a stack of broad translucent panels.
+        rr(ctx, cx, heroY, workW, heroH, 12, 0xE615152A);
+        fill(ctx, cx + 13, heroY + 12, cx + 16, heroY + heroH - 12,
+                LovenotePalette.alpha(accent, 184));
+        fill(ctx, cx + 27, heroY + 2, cx + Math.min(workW - 20, 130), heroY + 3,
+                LovenotePalette.alpha(LovenotePalette.C3, 75));
+        txt(ctx, query.isEmpty() ? "LIBRARY  /  WORKSPACE" : "LIBRARY  /  SEARCH RESULTS",
+                cx + 26, heroY + 9, 0xFFABA8C4);
+        txtBoldScaled(ctx, trim(title, Math.max(42, (int)((workW - 63) / 1.48f))),
+                cx + 26, heroY + 23, 1.48f, 0xFFF7F4FF);
         String heroMeta = page == cats.size() + 1 ? "THEMES   /   COLOURS"
                 : page == cats.size() + 2 ? "PREFERENCES   /   CONTROLS"
-                : count + " MODULES      " + activeCount + " ACTIVE";
-        txt(ctx, trim(heroMeta, Math.max(52, workW - 40)), cx + 27, heroY + 49,
-                LovenotePalette.alpha(LovenotePalette.C3, 222));
+                : count + " MODULES     /     " + activeCount + " ENABLED";
+        txt(ctx, trim(heroMeta, Math.max(52, workW - 48)), cx + 27, heroY + 49,
+                LovenotePalette.alpha(LovenotePalette.C3, 208));
 
         // Dedicated inspector separator; it shares the same bottom edge as the grid.
         moonContentTop = heroY + heroH + 9;
@@ -2143,40 +2144,45 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
             if (translated) { ctx.pose().pushMatrix(); ctx.pose().translate(0f, rise); }
 
             int accent = LovenotePalette.C2;
-            // Only a single rounded panel, no nested thick strokes or full-card glow.
-            int base = LovenotePalette.lerp(active ? 0xEF201A34 : 0xF018172B,
-                    0xF02A2443, Math.max(hover * 0.55f, focus * 0.82f));
-            rr(ctx, x, y, tileW, rowH, 10, base);
-            if (hover > 0.01f || focus > 0.01f)
-                fill(ctx, x + 13, y + 1, x + tileW - 13, y + 2,
-                        LovenotePalette.alpha(accent, Math.round(22 + 68 * Math.max(hover, focus))));
-            if (focused || active)
-                rr(ctx, x + 1, y + 12, 2, rowH - 24, 1,
-                        LovenotePalette.alpha(accent, Math.round(75 + 130 * Math.max(focus, on))));
+            // V27.4: restrained two-tone surface with a chrome hairline.
+            // Reuse the existing rounded primitive; no new textures or GPU shaders.
+            float emphasis = Math.max(hover, focus);
+            int surface = LovenotePalette.lerp(active ? 0xE7231B39 : 0xEB191728,
+                    0xEE2B2345, Math.min(1f, emphasis * 0.70f));
+            rr(ctx, x, y, tileW, rowH, 12, surface);
+            if (emphasis > 0.01f) {
+                fill(ctx, x + 14, y + 1, x + tileW - 14, y + 2,
+                        LovenotePalette.alpha(accent, Math.round(18 + 64 * emphasis)));
+            }
+            if (focus > 0.03f || on > 0.15f) {
+                rr(ctx, x + 1, y + 11, 2, rowH - 22, 1,
+                        LovenotePalette.alpha(accent, Math.round(55 + 154 * Math.max(focus, on))));
+            }
 
+            // Intentional icon plate: compact, distinct from the card surface.
             final int iconX = x + 12, iconY = y + 12;
-            rr(ctx, iconX, iconY, 28, 28, 8,
-                    LovenotePalette.lerp(0x90282A43,
-                            LovenotePalette.alpha(accent, 125), Math.max(on * 0.75f, focus * 0.65f)));
+            rr(ctx, iconX, iconY, 28, 28, 9,
+                    LovenotePalette.lerp(0x9C302B4D,
+                            LovenotePalette.alpha(accent, 145), Math.max(on * 0.76f, focus * 0.73f)));
             drawPremiumModuleIcon(ctx, iconX + 14, iconY + 14, m.title(),
-                    active || focused ? 0xFFF6F1FF : 0xFFB8B5D2);
+                    active || focused ? 0xFFF9F5FF : 0xFFC1BDD7);
 
             final int textX = x + 50;
-            final int textW = Math.max(26, tileW - 108);
-            txtBold(ctx, trim(m.title(), textW), textX, y + 10, 0xFFF5F3FE);
+            final int textW = Math.max(26, tileW - 109);
+            txtBold(ctx, trim(m.title(), textW), textX, y + 10, 0xFFF7F3FF);
             String detail = unported ? "NOT PORTED TO 26.2" : m.description();
             txt(ctx, trim(detail, textW), textX, y + 30,
-                    unported ? 0xFFEBC09F : 0xFF9999B5);
+                    unported ? 0xFFF1C5AA : 0xFFA5A3BF);
 
             final int sx = x + tileW - 40, sy = y + 19;
             if (unported) {
                 txt(ctx, "!", x + tileW - 18, y + 11, 0xFFFFC5A1);
             } else {
                 rr(ctx, sx, sy, 29, 14, 7,
-                        LovenotePalette.lerp(0xC02B2948,
-                                LovenotePalette.alpha(accent, 202), on));
-                rr(ctx, sx + 3 + Math.round(on * 13f), sy + 3, 8, 8, 4,
-                        LovenotePalette.lerp(0xFFC2BED3, 0xFFFFFFFF, on));
+                        LovenotePalette.lerp(0xCA29283D,
+                                LovenotePalette.alpha(accent, 209), on));
+                circle(ctx, sx + 7 + Math.round(on * 14f), sy + 7, 5,
+                        LovenotePalette.lerp(0xFFD0CCE1, 0xFFFFFFFF, on));
             }
             if (translated) ctx.pose().popMatrix();
 
@@ -3238,13 +3244,12 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
         final int accent = LovenotePalette.C2;
         final int frameRadius = LovenoteMenuConfig.style.equals("Moon") ? 14 : 20;
 
-        // Claude HTML drawer: quiet dark backdrop separated from the module grid.
-        // Inspector lives in its own grid column with a subtle dividing edge.
-        rr(ctx, px, py, pw, ph, frameRadius, 0xF3101020);
-        // Distinct header plane but no nested border or blur work.
-        rr(ctx, px + 1, py + 1, pw - 2, 84, 11, 0x8A242036);
-        fill(ctx, px + 17, py + 2, px + pw - 17, py + 3,
-                LovenotePalette.alpha(accent, 71));
+        // Claude-style contextual inspector: separate quiet reading surface.
+        // Only two lightweight rounded planes; no background blur pass.
+        rr(ctx, px, py, pw, ph, frameRadius, 0xF40E0E1F);
+        rr(ctx, px + 1, py + 1, pw - 2, 84, 12, 0xA1201B34);
+        fill(ctx, px + 16, py + 2, px + pw - 16, py + 3,
+                LovenotePalette.alpha(accent, 88));
 
         Row m = selected;
         if (m == null) {
@@ -3254,11 +3259,11 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
             return;
         }
 
-        // Stronger hierarchy: context label, module name and useful description.
-        txt(ctx, "MODULE  /  SETTINGS", px + 17, py + 11, 0xFFADA8C3);
-        txtBoldScaled(ctx, trim(m.title(), Math.max(32, (int)((pw - 111) / 1.34f))),
-                px + 17, py + 27, 1.34f, 0xFFF8F5FF);
-        txt(ctx, trim(m.description(), pw - 35), px + 17, py + 58, 0xFFB7B2CB);
+        // Typography hierarchy, kept clear of the switch and close controls.
+        txt(ctx, "INSPECTOR  /  MODULE", px + 17, py + 11, 0xFFADABC4);
+        txtBoldScaled(ctx, trim(m.title(), Math.max(28, (int)((pw - 110) / 1.45f))),
+                px + 17, py + 26, 1.45f, 0xFFF9F6FF);
+        txt(ctx, trim(m.description(), pw - 36), px + 17, py + 58, 0xFFA9A8C1);
         float on = ease(m.title() + ":s", m.active() ? 1f : 0f, 170);
         drawSwitch(ctx, px + pw - 63, py + 34, on);
         addHit(px + pw - 68, py + 29, 34, 21, K_PTOGGLE, m, null, 0);
@@ -3283,12 +3288,11 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
             boolean any = false;
             for (Object st : group.settings()) if (rowH(st, settingW) > 0) { any = true; break; }
             if (!any) continue;
-            if (!first) fill(ctx, px + 19, y, px + pw - 19, y + 1, 0x1C9D96C4);
+            if (!first) fill(ctx, px + 19, y, px + pw - 19, y + 1, 0x1E9D96C4);
             first = false;
             y += 8;
-            rr(ctx, px + 17, y + 1, 2, 8, 1, LovenotePalette.alpha(accent, 158));
-            txtBold(ctx, group.name(), px + 27, y,
-                    0xFFE9E6F3);
+            rr(ctx, px + 17, y + 1, 3, 9, 1, LovenotePalette.alpha(accent, 182));
+            txtBold(ctx, group.name(), px + 28, y, 0xFFF3EFFF);
             y += 19;
             for (Object st : group.settings()) y += drawSetting(ctx, m, st, px + 17, y, settingW);
         }
