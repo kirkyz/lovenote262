@@ -304,7 +304,7 @@ public final class SkyBlockCoach extends Module implements HudWidgetBounds {
     @Override public synchronized void onHud(GuiGraphicsExtractor g,float delta){
         if(mc.player==null||!hud.get())return;
         var state=live();
-        if(!showOutsideSkyBlock.get()&&!state.hypixel())return;
+        if(!showOutsideSkyBlock.get()&&!state.hypixel() && !(mc.gui.screen() instanceof meteordevelopment.meteorclient.gui.screens.LovenoteModulesScreen hudScreen && hudScreen.isDrainerHudEditor()))return;
         Step goal=current();
         int screenW=Gfx.guiW(), screenH=Gfx.guiH();
         if(screenW<80||screenH<40)return;

@@ -234,6 +234,8 @@ public class ModuleManager {
         register(new BiomeHud());
         register(new LightLevelHud());
         register(new FpsGraphHud());
+        // V28.1: opt-in real-data stats card inspired by the Claude HUD prototype.
+        register(new StatsHud());
         // V17 compact utility additions; opt-in by default.
         register(new ToolHealthHud());
         register(new InventorySpaceHud());

@@ -12,7 +12,8 @@ public final class TabList extends LegacyTextWidget {
         describe("Compact multiplayer tab overview (vanilla tab is unchanged).");
     }
     @Override public void onHud(GuiGraphicsExtractor g, float delta) {
-        if (mc.player == null || mc.getConnection() == null || !mc.options.keyPlayerList.isDown()) return;
+        if (mc.player == null || mc.getConnection() == null) return;
+        if (!mc.options.keyPlayerList.isDown() && !(mc.gui.screen() instanceof meteordevelopment.meteorclient.gui.screens.LovenoteModulesScreen hudScreen && hudScreen.isDrainerHudEditor())) return;
         StringBuilder message = new StringBuilder("Players ");
         var listed = mc.getConnection().getOnlinePlayers();
         message.append(listed.size()).append(": ");

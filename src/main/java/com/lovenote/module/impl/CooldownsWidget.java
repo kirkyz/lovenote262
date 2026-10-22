@@ -15,7 +15,7 @@ public final class CooldownsWidget extends LegacyTextWidget {
         if (mc.player == null) return;
         float charged = Math.max(0f, Math.min(1f, mc.player.getAttackStrengthScale(delta)));
         int percent = Math.round(charged * 100f);
-        if (percent == 100 && !showReady.get()) return;
+        if (percent == 100 && !showReady.get() && !(mc.gui.screen() instanceof meteordevelopment.meteorclient.gui.screens.LovenoteModulesScreen hudScreen && hudScreen.isDrainerHudEditor())) return;
         drawText(g, "Attack recharge: " + percent + "%");
     }
 }

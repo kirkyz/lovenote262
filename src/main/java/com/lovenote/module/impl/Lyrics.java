@@ -8,6 +8,7 @@ import com.lovenote.setting.BoolSetting;
 import com.lovenote.setting.NumberSetting;
 import com.lovenote.spotify.SpotifyManager;
 import com.lovenote.util.Gfx;
+import com.lovenote.util.HudGlass;
 import com.lovenote.util.Ui;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import java.net.URI;
@@ -35,10 +36,10 @@ import java.util.concurrent.TimeUnit;
 public final class Lyrics extends Module {
     private final NumberSetting x = add(new NumberSetting("X", .66, 0, .98, .005));
     private final NumberSetting y = add(new NumberSetting("Y", .75, 0, .98, .005));
-    private final NumberSetting scale = add(new NumberSetting("Scale", .7, .25, 1.6, .05));
+    private final NumberSetting scale = add(new NumberSetting("Scale", .95, .25, 1.6, .05));
     private final NumberSetting timingOffset = add(new NumberSetting("Timing offset (ms)", 0, -10000, 10000, 50));
     private final NumberSetting maxHold = add(new NumberSetting("Max lyric hold (ms)", 5500, 2000, 12000, 250));
-    private final BoolSetting oneLine = add(new BoolSetting("Single line", true));
+    private final BoolSetting oneLine = add(new BoolSetting("Single line", false));
     private final BoolSetting hideIdle = add(new BoolSetting("Hide when idle", true));
     private final NumberSetting idleDelay = add(new NumberSetting("Hide after pause (s)", 15, 0, 120, 5));
     private final BoolSetting karaoke = add(new BoolSetting("Word highlight", true));
@@ -422,7 +423,7 @@ public final class Lyrics extends Module {
     private void drawWords(GuiGraphicsExtractor g, Line line, long start, long end, long pos, int textX, int textY, int limit) {
         String s = fit(line.text, limit);
         if (s.isEmpty()) return;
-        if (!karaoke.get() || end <= start) { Ui.text(g, s, textX, textY, 0xFFF0B8DD); return; }
+        if (!karaoke.get() || end <= start) { Ui.text(g, s, textX, textY, HudGlass.accent()); return; }
         double fraction=Math.max(0,Math.min(1,(double)
             (pos-start)/(end-start)));
         // Estimated character progression from line timestamps, not true per-word timing.
@@ -431,10 +432,10 @@ public final class Lyrics extends Module {
         int cursor=textX;
         if(split>0) {
             String lit=s.substring(0,split);
-            Ui.text(g,lit,cursor,textY,0xFFFFB0E4);
+            Ui.text(g,lit,cursor,textY,HudGlass.accent());
             cursor+=Ui.textW(lit);
         }
-        if(split<s.length()) Ui.text(g,s.substring(split),cursor,textY,0xFF91829F);
+        if(split<s.length()) Ui.text(g,s.substring(split),cursor,textY,HudGlass.muted());
     }
     @Override public void onHud(GuiGraphicsExtractor g, float delta) {
         SpotifyManager m = SpotifyManager.I;
@@ -448,51 +449,59 @@ public final class Lyrics extends Module {
         if ((!m.hasTrack || finished || idle) && hideIdle.get() && !editing) return;
         double sc = Math.max(.25, Math.min(1.6, scale.get()));
         boolean single = oneLine.get();
-        int bw = single ? 270 : 308, bh = single ? 37 : 83;
+        int bw = single ? 306 : 345, bh = single ? 77 : 130;
         w=(int)Math.round(bw*sc); h=(int)Math.round(bh*sc);
         px=Math.max(0,Math.min((int)(x.get()*Gfx.guiW()),Math.max(0,Gfx.guiW()-w)));
         py=Math.max(0,Math.min((int)(y.get()*Gfx.guiH()),Math.max(0,Gfx.guiH()-h)));
         var pose = g.pose();
-        pose.pushMatrix(); pose.translate(px, py); pose.scale((float)sc,(float)sc);
-        Ui.widgetCard(g,0,0,bw,bh,214);
-        Ui.text(g,"LIVE LYRICS",9,5,0xFFB595CB);
-        // Do not draw the previous song during the tick before a track switch
-        // is processed. Duration bucket prevents reuse for different recordings.
+        pose.pushMatrix(); pose.translate(px,py); pose.scale((float)sc,(float)sc);
+        HudGlass.card(g,0,0,bw,bh,215);
+        // Live track metadata and musical icon; never use fake timed lines.
+        HudGlass.tile(g,12,11,29,29,false);
+        Ui.text(g,"♫",21,20,HudGlass.accent());
+        Ui.text(g,"SYNCED LYRICS",51,9,HudGlass.accent());
+        Ui.text(g,HudGlass.fit(m.hasTrack ? m.title : "Waiting for music",bw-68),
+                51,22,HudGlass.text());
+        Ui.text(g,HudGlass.fit(m.hasTrack ? m.artist : "Media bridge",bw-68),
+                51,36,HudGlass.muted());
+        g.fill(13,52,bw-13,53,0x267C83B6);
+        // A track switch invalidates lyrics even between ticks.
         boolean matching = m.hasTrack && track.equals(m.title + "|" + m.artist)
             && trackDurationBucket == durationBucket(m.durationMs);
         List<Line> ls = matching ? lines : List.of();
         List<String> pl = matching ? plainLines : List.of();
-        if (ls.isEmpty() && !pl.isEmpty()) {
-            // An approximate browse position, clearly marked as unsynchronised.
+        int activeY=single?60:88;
+        int limit=bw-27;
+        if(ls.isEmpty() && !pl.isEmpty()) {
             long duration=Math.max(1L,m.durationMs);
             int idx=(int)Math.min(pl.size()-1,Math.max(0L,m.progress()*pl.size()/duration));
-            Ui.text(g,"PLAIN · "+fit(pl.get(idx),bw-51),9,22,0xFFD9B8EA);
-            if(!single) {
-                if(idx>0) Ui.text(g,fit(pl.get(idx-1),bw-18),9,39,0xFF9483A1);
-                if(idx+1<pl.size()) Ui.text(g,fit(pl.get(idx+1),bw-18),9,61,0xFF9483A1);
-            }
-        } else if (ls.isEmpty()) {
-            Ui.text(g,fit(!m.hasTrack ? "Play music to preview lyrics"
-                : !matching ? "Finding timed lyrics..." : status,bw-18),9,22,0xFFC6ACC9);
+            if(!single && idx>0)
+                Ui.text(g,fit(pl.get(idx-1),limit),14,65,HudGlass.muted());
+            Ui.text(g,fit(pl.get(idx),limit),14,activeY,HudGlass.text());
+            if(!single && idx+1<pl.size())
+                Ui.text(g,fit(pl.get(idx+1),limit),14,108,HudGlass.muted());
+            // Fallback lyric provider has no timings; don't imply karaoke sync.
+            Ui.text(g,"PLAIN",bw-47,8,HudGlass.muted());
+        } else if(ls.isEmpty()) {
+            Ui.text(g,fit(!m.hasTrack ? "Play a track to preview lyrics"
+                : !matching ? "Finding synced lyrics..." : status,limit),14,activeY,HudGlass.muted());
         } else {
-            long pos = Math.max(0, m.progress()+timingOffset.getI());
-            int idx = -1;
-            for (int i=0; i<ls.size(); i++) if (ls.get(i).ms <= pos) idx = i; else break;
-            if (idx < 0) {
-                Ui.text(g, "Waiting for first line...",9,22,0xFF9B899F);
+            long pos=Math.max(0,m.progress()+timingOffset.getI());
+            int idx=-1;
+            for(int i=0;i<ls.size();i++) if(ls.get(i).ms<=pos)idx=i;else break;
+            if(idx<0) {
+                Ui.text(g,"Waiting for first lyric...",14,activeY,HudGlass.muted());
             } else {
                 long start=ls.get(idx).ms;
                 long holdEnd=start+maxHold.getI();
                 long next=idx+1<ls.size()?ls.get(idx+1).ms:Math.max(start+3000,m.durationMs);
                 long end=Math.min(next,holdEnd);
-                // LRCLIB gives line start timestamps, not reliable end timestamps.
-                // Avoid displaying the same finished lyric through long gaps or outro.
-                if(pos>holdEnd) Ui.text(g,"♪",9,single?22:39,0xFFA78EBB);
-                else drawWords(g,ls.get(idx),start,end,pos,9,single?22:39,bw-28);
-                if(!single) {
-                    if(idx>0) Ui.text(g,fit(ls.get(idx-1).text,bw-18),9,26,0xFF776F88);
-                    if(idx+1<ls.size()) Ui.text(g,fit(ls.get(idx+1).text,bw-18),9,63,0xFF867B96);
-                }
+                if(!single && idx>0)
+                    Ui.text(g,fit(ls.get(idx-1).text,limit),14,65,HudGlass.muted());
+                if(pos>holdEnd) Ui.text(g,"♫",14,activeY,HudGlass.accent());
+                else drawWords(g,ls.get(idx),start,end,pos,14,activeY,limit);
+                if(!single && idx+1<ls.size())
+                    Ui.text(g,fit(ls.get(idx+1).text,limit),14,108,HudGlass.muted());
             }
         }
         pose.popMatrix();

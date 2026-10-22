@@ -249,7 +249,17 @@ public final class SchematicAssist extends Module implements HudWidgetBounds {
         return s+"…";
     }
     @Override public synchronized void onHud(GuiGraphicsExtractor g,float delta){
-        if(mc.player==null||!showHud.get()||design==null)return;
+        if(mc.player==null||!showHud.get())return;
+        if(design==null) {
+            if(mc.gui.screen() instanceof meteordevelopment.meteorclient.gui.screens.LovenoteModulesScreen hudScreen && hudScreen.isDrainerHudEditor()) {
+                dw=130;dh=24;
+                dx=Math.max(0,Math.min((int)(x.get()*Gfx.guiW()),Gfx.guiW()-dw));
+                dy=Math.max(0,Math.min((int)(y.get()*Gfx.guiH()),Gfx.guiH()-dh));
+                Ui.widgetCard(g,dx,dy,dw,dh,145);
+                Ui.text(g,"SCHEM  /  Load a file",dx+8,dy+8,Ui.textDim);
+            }
+            return;
+        }
         boolean compact=compactHud.get();
         int boxW=compact?258:290, boxH=compact?44:68;
         float sc=(float)hudScale.get();

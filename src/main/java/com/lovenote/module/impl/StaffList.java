@@ -36,7 +36,7 @@ public final class StaffList extends LegacyTextWidget {
     }
     @Override public void onHud(GuiGraphicsExtractor g, float delta) {
         if (mc.player == null || mc.getConnection() == null) return;
-        if (summary.isEmpty() && !showEmpty.get()) return;
+        if (summary.isEmpty() && !showEmpty.get() && !(mc.gui.screen() instanceof meteordevelopment.meteorclient.gui.screens.LovenoteModulesScreen hudScreen && hudScreen.isDrainerHudEditor())) return;
         drawText(g, summary.isEmpty() ? "Public staff tags: none listed" : summary);
     }
     @Override public void onDisable() { summary = ""; scanTick = 0; }

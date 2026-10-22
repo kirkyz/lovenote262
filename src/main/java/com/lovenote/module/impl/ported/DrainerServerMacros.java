@@ -331,8 +331,15 @@ public final class DrainerServerMacros {
         @Override public void onDisable(){stop();}
     }
     /** Shared native offhand refill for both Hypixel and Donut; uses bundled Meteor inventory helper. */
-    public static final class OffhandTotem extends Module {
+    public static final class OffhandTotem extends Module implements com.lovenote.util.HudWidgetBounds {
         private final NumberSetting interval=add(new NumberSetting("Check interval (ticks)",10,4,40,1));
+        private final NumberSetting x=add(new NumberSetting("X",.015,0,.98,.005));
+        private final NumberSetting y=add(new NumberSetting("Y",.26,0,.98,.005));
+        private int px,py,ww=140;
+        @Override public int editorX(){return px;}
+        @Override public int editorY(){return py;}
+        @Override public int editorWidth(){return ww;}
+        @Override public int editorHeight(){return 22;}
         private int ticks,spare;
         public OffhandTotem(){super("OffhandTotem",Category.RAGE);alsoIn.add(Category.DONUT);alsoIn.add(Category.HYPIXEL);describe("Moves a spare totem into your offhand. Uses existing client inventory transaction handling.");}
         @Override public void onTick(){
@@ -344,10 +351,18 @@ public final class DrainerServerMacros {
             if(found.found()) meteordevelopment.meteorclient.utils.player.InvUtils.move().from(found.slot()).toOffhand();
         }
         @Override public void onHud(GuiGraphicsExtractor g,float delta){
-            if(mc.player==null || mc.player.getOffhandItem().is(Items.TOTEM_OF_UNDYING))return;
-            String s="DR  |  Totem missing  (spares: "+spare+")";
-            Ui.pill(g,8,90,Ui.textW(s)+14,20);
-            Ui.text(g,s,15,96,0xFFFFB8BD);
+            if(mc.player==null)return;
+            boolean safe=mc.player.getOffhandItem().is(Items.TOTEM_OF_UNDYING);
+            boolean editing=mc.gui.screen() instanceof
+                meteordevelopment.meteorclient.gui.screens.LovenoteModulesScreen hudEditor
+                && hudEditor.isDrainerHudEditor();
+            if(safe&&!editing)return;
+            String s=safe ? "Totem  |  Offhand ready" : "Totem  |  Missing  (spares: "+spare+")";
+            ww=Ui.textW(s)+16;
+            px=Math.max(0,Math.min((int)(x.get()*Gfx.guiW()),Math.max(0,Gfx.guiW()-ww)));
+            py=Math.max(0,Math.min((int)(y.get()*Gfx.guiH()),Math.max(0,Gfx.guiH()-22)));
+            Ui.widgetCard(g,px,py,ww,22,180);
+            Ui.text(g,s,px+8,py+7,safe?Ui.accent1:0xFFFFB8BD);
         }
     }
     public static final class ServerMobAura extends Module {

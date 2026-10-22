@@ -5,6 +5,7 @@ import com.lovenote.module.Module;
 import com.lovenote.setting.BoolSetting;
 import com.lovenote.setting.NumberSetting;
 import com.lovenote.util.Gfx;
+import com.lovenote.util.HudGlass;
 import com.lovenote.util.HudWidgetBounds;
 import com.lovenote.util.Ui;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -33,7 +34,7 @@ public final class DrainerInfoBar extends Module implements HudWidgetBounds {
         String[] data={logo.get()?"✦ DRAINER":null,fps.get()?mc.getFps()+" FPS":null,
             time.get()?LocalTime.now().format(CLOCK):null,
             server.get()?(mc.getCurrentServer()==null?"Singleplayer":mc.getCurrentServer().ip):null};
-        int pad=6,gap=separated.get()?4:1,h=17;
+        int pad=9,gap=separated.get()?6:2,h=21;
         int total=0,count=0;
         for(String item:data)if(item!=null){total+=Ui.textW(item)+pad*2;count++;}
         if(count==0)return;
@@ -45,9 +46,8 @@ public final class DrainerInfoBar extends Module implements HudWidgetBounds {
         for(String item:data){
             if(item==null)continue;
             int w=Ui.textW(item)+pad*2;
-            Ui.rrect(g,left,py,w,h,4,0xE90D0B16);
-            Ui.rect(g,left+3,py,w-6,1,0x805A3477);
-            Ui.text(g,item,left+pad,py+4,item.startsWith("✦")?Ui.accent1:0xFFE7DDED);
+            Ui.widgetCard(g,left,py,w,h,205);
+            Ui.text(g,item,left+pad,py+6,item.startsWith("✦")?Ui.accent1:HudGlass.text());
             left+=w+gap;
         }
     }

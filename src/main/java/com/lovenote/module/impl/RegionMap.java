@@ -7,13 +7,19 @@ import com.lovenote.setting.NumberSetting;
 import com.lovenote.util.Colors;
 import com.lovenote.util.Gfx;
 import com.lovenote.util.Ui;
+import com.lovenote.util.HudWidgetBounds;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.levelgen.Heightmap;
 
 /** Compact cached local terrain minimap. No external mapping downloads. */
-public final class RegionMap extends Module {
+public final class RegionMap extends Module implements HudWidgetBounds {
+    private int drawnX,drawnY,drawnW=99,drawnH=108;
+    @Override public int editorX(){return drawnX;}
+    @Override public int editorY(){return drawnY;}
+    @Override public int editorWidth(){return drawnW;}
+    @Override public int editorHeight(){return drawnH;}
     private final NumberSetting x = add(new NumberSetting("X", .82, 0, .95, .01));
     private final NumberSetting y = add(new NumberSetting("Y", .10, 0, .90, .01));
     private final NumberSetting radius = add(new NumberSetting("Radius (blocks)", 56, 16, 128, 8));
@@ -63,6 +69,7 @@ public final class RegionMap extends Module {
         int w = MAP_SIZE + 12, h = MAP_SIZE + (showCoords.get() ? 31 : 20);
         int px = Math.max(0, Math.min((int)(x.get() * Gfx.guiW()), Math.max(0, Gfx.guiW() - w)));
         int py = Math.max(0, Math.min((int)(y.get() * Gfx.guiH()), Math.max(0, Gfx.guiH() - h)));
+        drawnX=px;drawnY=py;drawnW=w;drawnH=h;
         Ui.widgetCard(g, px, py, w, h, 215);
         Ui.text(g, "MINIMAP", px + 6, py + 4, Ui.textDim);
         int ox = px + 6, oy = py + 16;

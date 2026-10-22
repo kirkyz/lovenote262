@@ -26,15 +26,36 @@ abstract class LegacyTextWidget extends Module implements HudWidgetBounds {
         x = add(new NumberSetting("X", px, 0, 0.98, 0.005));
         y = add(new NumberSetting("Y", py, 0, 0.98, 0.005));
     }
+    /** Give a custom card stable hitbox dimensions in the native HUD editor. */
+    protected final void drawCustomCard(GuiGraphicsExtractor g, int width, int height) {
+        int gw = Math.max(1, Gfx.guiW()), gh = Math.max(1, Gfx.guiH());
+        drawnW = Math.max(1, width); drawnH = Math.max(1, height);
+        drawnX = Math.max(0, Math.min((int) (x.get() * gw), Math.max(0, gw - drawnW)));
+        drawnY = Math.max(0, Math.min((int) (y.get() * gh), Math.max(0, gh - drawnH)));
+        if (frame.get()) com.lovenote.util.HudGlass.card(g, drawnX, drawnY, drawnW, drawnH, opacity.getI());
+    }
+
     protected final void drawText(GuiGraphicsExtractor g, String value) {
         if (value == null || value.isEmpty()) return;
-        int pad = compact.get() ? 5 : 8;
-        int h = compact.get() ? 15 : 19;
-        int w = Ui.textW(value) + pad * 2;
+        // Consistent narrow 'data chip' instead of each widget's old bulky box.
+        int pad = compact.get() ? 10 : 12;
+        int h = compact.get() ? 22 : 26;
+        int w = Ui.textW(value) + pad * 2 + 4;
         int px = Math.max(0, Math.min((int)(x.get() * Gfx.guiW()), Math.max(0, Gfx.guiW() - w)));
         int py = Math.max(0, Math.min((int)(y.get() * Gfx.guiH()), Math.max(0, Gfx.guiH() - h)));
         drawnX=px;drawnY=py;drawnW=w;drawnH=h;
         if (frame.get()) Ui.widgetCard(g, px, py, w, h, opacity.getI());
-        Ui.text(g, value, px + pad, py + (h - 8) / 2, Ui.textCol);
+        if (frame.get() && w > 25)
+            g.fill(px + 6, py + 6, px + 8, py + h - 6, (com.lovenote.util.HudGlass.accent() & 0xFFFFFF) | 0xA0000000);
+        // Colour the metric label rather than adding another decorative block.
+        int split = value.indexOf(' ');
+        if (split > 1 && split < 14) {
+            String title = value.substring(0, split);
+            Ui.text(g, title, px + pad, py + (h - 8) / 2, com.lovenote.util.HudGlass.accent());
+            Ui.text(g, value.substring(split), px + pad + Ui.textW(title),
+                    py + (h - 8) / 2, Ui.textCol);
+        } else {
+            Ui.text(g, value, px + pad, py + (h - 8) / 2, Ui.textCol);
+        }
     }
 }

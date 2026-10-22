@@ -12,11 +12,11 @@ public final class HudScale {
     private static final Map<String,Double> VALUES=new ConcurrentHashMap<>();
     private HudScale(){}
     public static double get(Module m){return VALUES.getOrDefault(m.name,1.0);}
-    public static void set(Module m,double value){VALUES.put(m.name,Math.max(.30,Math.min(2.50,value)));}
+    public static void set(Module m,double value){VALUES.put(m.name,Math.max(.20,Math.min(5.00,value)));}
     public static void load(JsonObject o){
         VALUES.clear();if(o==null)return;
         for(var e:o.entrySet()) {
-            try{VALUES.put(e.getKey(),Math.max(.30,Math.min(2.50,e.getValue().getAsDouble())));}
+            try{VALUES.put(e.getKey(),Math.max(.20,Math.min(5.00,e.getValue().getAsDouble())));}
             catch(Exception ignored){}
         }
     }
@@ -28,8 +28,8 @@ public final class HudScale {
         if(Math.abs(scale-1)<.001){m.onHud(g,tickDelta);return;}
         double ax=0,ay=0;
         for(var setting:m.settings)if(setting instanceof NumberSetting n){
-            if(n.name.equalsIgnoreCase("X")) ax=n.max<=1.5?n.get()*Gfx.guiW():n.get();
-            if(n.name.equalsIgnoreCase("Y")) ay=n.max<=1.5?n.get()*Gfx.guiH():n.get();
+            if(n.name.equalsIgnoreCase("X") || n.name.equalsIgnoreCase("HUD X")) ax=n.max<=1.5?n.get()*Gfx.guiW():n.get();
+            if(n.name.equalsIgnoreCase("Y") || n.name.equalsIgnoreCase("HUD Y")) ay=n.max<=1.5?n.get()*Gfx.guiH():n.get();
         }
         var pose=g.pose();pose.pushMatrix();
         pose.translate((float)ax,(float)ay);

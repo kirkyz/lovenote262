@@ -25,5 +25,6 @@ public final class HitLog extends LegacyTextWidget {
     @Override public void onHud(GuiGraphicsExtractor g, float delta) {
         if (!lastTarget.isEmpty() && ticksSince < 20 * 15)
             drawText(g, "Attacks " + attacks + "  |  Last: " + lastTarget);
+        else if (mc.gui.screen() instanceof meteordevelopment.meteorclient.gui.screens.LovenoteModulesScreen hudScreen && hudScreen.isDrainerHudEditor()) drawText(g, "Hit log  |  No recent attacks");
     }
 }

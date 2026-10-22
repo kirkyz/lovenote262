@@ -137,9 +137,14 @@ public class LovenoteModulesScreen extends TabScreen {
     private int hudListScroll, hudSettingsScroll;
     private boolean hudInspectorOpen;
     private boolean hudResizing;
-    private static final float HUD_CHROME_SCALE = 0.68f;
+    private static final float HUD_CHROME_SCALE = 0.72f;
+    // Navigation belongs to the editor palette; actual widgets remain the controls.
+    private int hudGroup = 0;
+    private String hudSearch = "";
+    private boolean hudSearchFocused = false;
+    private static final String[] HUD_GROUPS = {"ALL", "ACTIVE", "STATUS", "MEDIA", "TOOLS"};
     private int hudInspectorLeft = Integer.MAX_VALUE;
-    private double hudResizeStartX, hudResizeStartScale;
+    private double hudResizeStartX, hudResizeStartY, hudResizeStartScale;
 
     private final java.util.List<HudHit> hudHits = new java.util.ArrayList<>();
     private static final class HudHit {
@@ -154,24 +159,57 @@ public class LovenoteModulesScreen extends TabScreen {
     public boolean isDrainerHudEditor() { return drainerHudEditor; }
     private static boolean hudModule(com.lovenote.module.Module m) {
         if (m.hidden) return false;
+        // HUD effects without a position (e.g. screen flashes, world tint) are
+        // still configurable in their normal module category, not in a draggable editor.
+        boolean hudCategory = m.category == com.lovenote.module.Category.HUD
+            || m.category == com.lovenote.module.Category.SPOTIFY
+            || m.alsoIn.contains(com.lovenote.module.Category.HUD)
+            || m instanceof com.lovenote.module.impl.ported.DrainerServerMacros.OffhandTotem;
+        if (!hudCategory) return false;
+        boolean positioned = m instanceof com.lovenote.util.HudWidgetBounds
+            || m instanceof com.lovenote.module.impl.SpotifyHud
+            || m instanceof com.lovenote.module.impl.Lyrics
+            || (hudNumber(m,"X") != null && hudNumber(m,"Y") != null);
+        if (!positioned) return false;
         try {
             return m.getClass().getMethod("onHud", GuiGraphicsExtractor.class, float.class)
                 .getDeclaringClass() != com.lovenote.module.Module.class;
-        } catch (ReflectiveOperationException ex) {
-            return m.category == com.lovenote.module.Category.HUD || m.category == com.lovenote.module.Category.SPOTIFY;
-        }
+        } catch (ReflectiveOperationException ex) { return false; }
+    }
+    private boolean hudGroupMatches(com.lovenote.module.Module m) {
+        boolean media = m.category == com.lovenote.module.Category.SPOTIFY;
+        boolean tools = m instanceof com.lovenote.module.impl.SchematicAssist
+            || m instanceof com.lovenote.module.impl.SkyBlockCoach
+            || m.name.equalsIgnoreCase("RegionMap") || m.name.equalsIgnoreCase("Compass")
+            || m.name.equalsIgnoreCase("Keystrokes")
+            || m.name.equalsIgnoreCase("OffhandTotem");
+        if (hudGroup == 1 && !m.enabled) return false;
+        if (hudGroup == 2 && (media || tools)) return false;
+        if (hudGroup == 3 && !media) return false;
+        if (hudGroup == 4 && !tools) return false;
+        return hudSearch.isBlank() || m.name.toLowerCase(java.util.Locale.ROOT)
+            .contains(hudSearch.toLowerCase(java.util.Locale.ROOT));
     }
     private java.util.List<com.lovenote.module.Module> hudModules() {
         java.util.List<com.lovenote.module.Module> list = new java.util.ArrayList<>();
         if (com.lovenote.Lovenote.modules != null) {
-            for (com.lovenote.module.Module m : com.lovenote.Lovenote.modules.all()) if (hudModule(m)) list.add(m);
+            for (com.lovenote.module.Module m : com.lovenote.Lovenote.modules.all())
+                if (hudModule(m) && hudGroupMatches(m)) list.add(m);
         }
+        return list;
+    }
+    private java.util.List<com.lovenote.module.Module> hudAllModules() {
+        java.util.List<com.lovenote.module.Module> list = new java.util.ArrayList<>();
+        if (com.lovenote.Lovenote.modules != null)
+            for (com.lovenote.module.Module m : com.lovenote.Lovenote.modules.all())
+                if (hudModule(m)) list.add(m);
         return list;
     }
     private static com.lovenote.setting.NumberSetting hudNumber(com.lovenote.module.Module m,String name) {
         if(m==null)return null;
         for (com.lovenote.setting.Setting st:m.settings) {
-            if (st instanceof com.lovenote.setting.NumberSetting n && st.name.equalsIgnoreCase(name)) return n;
+            if (st instanceof com.lovenote.setting.NumberSetting n &&
+                    (st.name.equalsIgnoreCase(name) || st.name.equalsIgnoreCase("HUD " + name))) return n;
         }
         return null;
     }
@@ -183,7 +221,7 @@ public class LovenoteModulesScreen extends TabScreen {
         drainerHudEditor=true;
         hudSelected=null;
         hudDragging=null;hudSlider=null;hudListScroll=0;hudSettingsScroll=0;
-        hudInspectorOpen=false;
+        hudInspectorOpen=false;hudResizing=false;hudGroup=0;hudSearch="";hudSearchFocused=false;
     }
     private int hudWidgetX(com.lovenote.module.Module m) {
         if (m instanceof com.lovenote.util.HudWidgetBounds bounds) return bounds.editorX();
@@ -211,8 +249,11 @@ public class LovenoteModulesScreen extends TabScreen {
     }
     private void hudMoveModule(com.lovenote.module.Module m,double x,double y) {
         var sx=hudNumber(m,"X");var sy=hudNumber(m,"Y");
-        if(sx!=null)sx.set(Math.max(0,Math.min(1,x/Math.max(1,width))));
-        if(sy!=null)sy.set(Math.max(0,Math.min(1,y/Math.max(1,height))));
+        double sc=com.lovenote.util.HudScale.get(m);
+        double maxX=Math.max(0,width-Math.max(1,hudWidgetW(m)*sc));
+        double maxY=Math.max(0,height-Math.max(1,hudWidgetH(m)*sc));
+        if(sx!=null)sx.set(Math.min(sx.max,Math.max(sx.min,Math.max(0,Math.min(maxX,x))/Math.max(1,width))));
+        if(sy!=null)sy.set(Math.min(sy.max,Math.max(sy.min,Math.max(0,Math.min(maxY,y))/Math.max(1,height))));
     }
     // Compact HUD editor: clicking a translucent item in the dock activates that
     // widget; the Minecraft world stays visible while the widget is dragged.
@@ -222,7 +263,7 @@ public class LovenoteModulesScreen extends TabScreen {
         hudInspectorLeft=Integer.MAX_VALUE;
         // Leave the world completely unobstructed; the widget palette has no backdrop.
         java.util.List<com.lovenote.module.Module> mods=hudModules();
-        for(com.lovenote.module.Module m:mods) if(m.enabled)
+        for(com.lovenote.module.Module m:hudAllModules()) if(m.enabled)
             com.lovenote.util.HudScale.draw(m,g,delta);
 
         // World-space outline and corner grip follow the actual, unscaled widget.
@@ -232,13 +273,15 @@ public class LovenoteModulesScreen extends TabScreen {
                 double sc=com.lovenote.util.HudScale.get(hudSelected);
                 int ww=Math.max(16,(int)Math.round(hudWidgetW(hudSelected)*sc));
                 int hh=Math.max(12,(int)Math.round(hudWidgetH(hudSelected)*sc));
-                // Two thin lines plus a subtle outer halo, rather than a large box.
-                rr(g,bx-2,by-2,ww+4,hh+4,4,0x164E1F73);
-                fill(g,bx,by,bx+ww,by+1,0xB4DC97F5);
-                fill(g,bx,by+hh-1,bx+ww,by+hh,0xB4DC97F5);
-                fill(g,bx,by,bx+1,by+hh,0xB4DC97F5);
-                fill(g,bx+ww-1,by,bx+ww,by+hh,0xB4DC97F5);
-                neon(g,bx+ww-6,by+hh-6,10,10,4,0xFFD8A7ED,0x9FCC75FF);
+                // World-space editing guide; no giant selected-widget rectangle.
+                int guide=(0xB8 << 24) | (com.lovenote.util.Ui.accent1 & 0xFFFFFF);
+                fill(g,bx,by,bx+ww,by+1,guide);
+                fill(g,bx,by+hh-1,bx+ww,by+hh,guide);
+                fill(g,bx,by,bx+1,by+hh,guide);
+                fill(g,bx+ww-1,by,bx+ww,by+hh,guide);
+                // Two small solid corner grips for scale-to-fit resizing.
+                rr(g,bx+ww-6,by+hh-6,10,10,3,0xEEFAFCFF);
+                rr(g,bx+ww-4,by+hh-4,6,6,2,com.lovenote.util.Ui.accent1);
                 hudHits.add(new HudHit(bx+ww-10,by+hh-10,18,18,15,hudSelected,null));
             }
         }
@@ -251,14 +294,35 @@ public class LovenoteModulesScreen extends TabScreen {
         try {
             int vWidth=Math.max(1,(int)(width/HUD_CHROME_SCALE));
             int vHeight=Math.max(1,(int)(height/HUD_CHROME_SCALE));
-            txt(g,"DRAINER  /  HUD EDITOR",19,18,DrainerSkin.TEXT);
-            txt(g,"ESC to close",185,18,DrainerSkin.MUTED);
+            // Minimal glass heading, not an intrusive full-screen editor menu.
+            rr(g,18,10,238,46,12,0xA5131832);
+            fill(g,32,13,239,14,(com.lovenote.util.Ui.accent1 & 0xFFFFFF) | 0x96000000);
+            txt(g,"DRAINER  /  HUD EDITOR",30,21,0xFFF2F1FF);
+            txt(g,"DRAG  ·  RESIZE CORNER  ·  RIGHT-CLICK HIDE  ·  ESC SAVE",30,40,0xC0B8BCE2);
 
-            // Pure text dock: no full-width window, no chips, no individual boxes.
-            // A restrained underline indicates the selected module without hiding gameplay.
-            int dockX=18,dockH=32,dockY=vHeight-dockH-12,dockW=vWidth-36;
-            txt(g,"WIDGETS  ·  LEFT: SHOW / DRAG  ·  RIGHT: HIDE  ·  SCROLL",dockX,dockY-11,0xAFCBB7DA);
-            int chipX=dockX,chipY=dockY+8,chipH=18,gap=18;
+            // A slim filtered palette. Active widgets stay visible regardless of filter.
+            int dockX=18,dockH=36,dockY=vHeight-dockH-12,dockW=vWidth-36;
+            int groupX=dockX;
+            for (int fi=0; fi<HUD_GROUPS.length; fi++) {
+                String tag=HUD_GROUPS[fi];
+                int fw=Math.max(39,font.width(tag)+14);
+                if (hudGroup==fi) {
+                    fill(g,groupX,dockY+11,groupX+fw,dockY+12,
+                        (com.lovenote.util.Ui.accent1&0x00FFFFFF)|0xCC000000);
+                }
+                txt(g,tag,groupX+4,dockY,
+                    hudGroup==fi ? 0xFFF0E7FF : 0xB8ACB7CE);
+                hudHit(groupX,dockY-4,fw,18,20+fi,null,null);
+                groupX+=fw+8;
+            }
+            int searchX=Math.min(vWidth-118,groupX+9);
+            if(searchX < vWidth-75) {
+                String label=hudSearchFocused ? "SEARCH: " + hudSearch + "_" :
+                    hudSearch.isBlank() ? "SEARCH  /" : "SEARCH: " + hudSearch;
+                txt(g,label,searchX,dockY,hudSearchFocused?0xFFF0E7FF:0xAEB2BBD2);
+                hudHit(searchX-4,dockY-4,vWidth-searchX-12,18,25,null,null);
+            }
+            int chipX=dockX,chipY=dockY+20,chipH=15,gap=16;
             int maxVisible=dockX+dockW-6;
             hudListScroll=Math.max(0,Math.min(Math.max(0,mods.size()-1),hudListScroll));
             for(int i=hudListScroll;i<mods.size();i++) {
@@ -272,7 +336,7 @@ public class LovenoteModulesScreen extends TabScreen {
                     g.fill(chipX,chipY-1,chipX+chipW,chipY+chipH+1,0x463B3154);
                     DrainerSkin.selectionMark(g,chipX,chipY,chipH);
                 }
-                txt(g,label,chipX+3,chipY+4,
+                txt(g,label,chipX+3,chipY+3,
                     sel?0xFFF6DDFE:m.enabled?0xDAD6BADF:0xA7B09ABA);
                 if(sel) {
                     fill(g,chipX+3,chipY+chipH-1,chipX+chipW-1,chipY+chipH,0xCCE4A6F7);
@@ -286,54 +350,9 @@ public class LovenoteModulesScreen extends TabScreen {
             if(chipX>=maxVisible && !mods.isEmpty())
                 txt(g,"›",vWidth-18,chipY+4,0xCBDFB9F1);
 
-            // No permanent settings column: open only after selecting a widget.
-            if(hudSelected!=null && hudInspectorOpen) {
-                int iw=Math.min(210,Math.max(165,vWidth/3));
-                int ih=Math.min(156,Math.max(108,vHeight-dockH-53));
-                int ix=vWidth-iw-17,iy=Math.max(46,dockY-ih-10);
-                hudInspectorLeft=Math.round(ix*HUD_CHROME_SCALE);
-                DrainerSkin.surface(g,ix,iy,iw,ih,9,false);
-                txt(g,"WIDGET  /  "+hudSelected.name,ix+12,iy+13,DrainerSkin.TEXT);
-                txt(g,"×",ix+iw-18,iy+12,0xFFF6B8E9);
-                hudHit(ix+iw-25,iy+5,21,23,16,hudSelected,null);
-                int line=iy+34;
-                DrainerSkin.surface(g,ix+12,line-2,40,17,7,hudSelected.enabled);
-                txt(g,hudSelected.enabled?"ON":"OFF",ix+22,line+3,0xFFFFDCF8);
-                hudHit(ix+12,line-2,40,17,2,hudSelected,null);
-                txt(g,"SCALE",ix+65,line+2,0xFFD5BCD9);
-                double current=com.lovenote.util.HudScale.get(hudSelected);
-                txt(g,String.format(java.util.Locale.ROOT,"%d%%",(int)Math.round(current*100)),
-                    ix+iw-42,line+2,0xFFFFD3FA);
-                int sx=ix+13,sy=line+25,sw=iw-26;
-                rr(g,sx,sy,sw,3,2,0xFF493454);
-                int fillW=(int)Math.round(sw*(current-.30)/2.20);
-                if(fillW>0)rr(g,sx,sy,fillW,3,2,0xFFE6A1F4);
-                rr(g,sx+fillW-2,sy-3,7,9,3,0xFFFFC5F8);
-                hudHit(sx,sy-7,sw,18,14,hudSelected,null);
-                txt(g,"30%",sx,sy+11,0xFFA88EB8);
-                txt(g,"250%",ix+iw-42,sy+11,0xFFA88EB8);
-
-                int yy=sy+30,limit=iy+ih-9,index=0;
-                for(com.lovenote.setting.Setting st:hudSelected.settings) {
-                    if(index++<hudSettingsScroll)continue;
-                    if(yy+19>limit)break;
-                    if(st instanceof com.lovenote.setting.NumberSetting n) {
-                        String label=st.name;
-                        while(label.length()>4&&font.width(label)>iw-77)label=label.substring(0,label.length()-2);
-                        txt(g,label,ix+13,yy+2,0xFFDDC9E7);
-                        txt(g,String.format(java.util.Locale.ROOT,"%.1f",n.get()),ix+iw-47,yy+2,0xFFEBB4EA);
-                        hudHit(ix+13,yy,iw-24,17,3,hudSelected,st);
-                    } else if(st instanceof com.lovenote.setting.BoolSetting b) {
-                        txt(g,st.name,ix+13,yy+2,0xFFDDC9E7);
-                        txt(g,b.get()?"ON":"OFF",ix+iw-36,yy+2,b.get()?0xFFECA8EB:0xFF9883A8);
-                        hudHit(ix+13,yy,iw-24,17,4,hudSelected,st);
-                    } else if(st instanceof com.lovenote.setting.ModeSetting mode) {
-                        txt(g,st.name,ix+13,yy+2,0xFFD4B4E0);
-                        hudHit(ix+13,yy,iw-24,17,10,hudSelected,st);
-                    }
-                    yy+=19;
-                }
-            }
+            // V28.2: no inspector or settings pop-up here. The dock only toggles
+            // widgets on; the real widget is selected on the world and resized
+            // with its visible corner handle.
         } finally { pose.popMatrix(); }
     }
 
@@ -778,10 +797,10 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
                 if(hudSelected==hit.module){hudSelected=null;hudDragging=null;hudInspectorOpen=false;}
                 return true;
             }
-            java.util.List<com.lovenote.module.Module> all=hudModules();
+            java.util.List<com.lovenote.module.Module> all=hudAllModules();
             for(int i=all.size()-1;i>=0;i--) {
                 com.lovenote.module.Module m=all.get(i);
-                if(!m.enabled||hudNumber(m,"X")==null||hudNumber(m,"Y")==null)continue;
+                if(!m.enabled)continue;
                 int bx=hudWidgetX(m),by=hudWidgetY(m);
                 double z=com.lovenote.util.HudScale.get(m);
                 int ww=Math.max(1,(int)Math.ceil(hudWidgetW(m)*z));
@@ -798,12 +817,15 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
         for(int i=hudHits.size()-1;i>=0;i--){
             HudHit hit=hudHits.get(i);if(!hit.contains(mx,my))continue;
             switch(hit.action) {
+                case 20, 21, 22, 23, 24 -> {
+                    hudGroup=hit.action-20;hudListScroll=0;hudSearchFocused=false;
+                }
+                case 25 -> { hudSearchFocused=true;hudListScroll=0; }
                 case 1 -> {
-                    // Clicking a widget shows/selects it; clicking again opens compact settings.
-                    boolean again=hudSelected==hit.module;
+                    // One click reveals/selects the real widget. Never open a menu.
                     if(!hit.module.enabled)hit.module.toggle();
                     hudSelected=hit.module;hudSettingsScroll=0;
-                    hudInspectorOpen=again?!hudInspectorOpen:false;
+                    hudInspectorOpen=false;
                 }
                 case 2 -> {hit.module.toggle();hudSelected=hit.module;hudSettingsScroll=0;}
                 case 3 -> {hudSetSlider(hit,mx);hudSlider=(com.lovenote.setting.NumberSetting)hit.setting;}
@@ -824,14 +846,15 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
                     hudResizing=true;}
                 case 16 -> {hudInspectorOpen=false;hudSettingsScroll=0;}
                 case 15 -> {hudSelected=hit.module;hudResizing=true;
-                    hudResizeStartX=mx;hudResizeStartScale=com.lovenote.util.HudScale.get(hit.module);}
+                    hudResizeStartX=mx;hudResizeStartY=my;
+                    hudResizeStartScale=com.lovenote.util.HudScale.get(hit.module);}
             }
             return true;
         }
-        java.util.List<com.lovenote.module.Module> mods=hudModules();
+        java.util.List<com.lovenote.module.Module> mods=hudAllModules();
         for(int i=mods.size()-1;i>=0;i--) {
             com.lovenote.module.Module m=mods.get(i);
-            if(!m.enabled||hudNumber(m,"X")==null||hudNumber(m,"Y")==null)continue;
+            if(!m.enabled)continue;
             int bx=hudWidgetX(m),by=hudWidgetY(m);
             double z=com.lovenote.util.HudScale.get(m);
             int ww=Math.max(1,(int)Math.ceil(hudWidgetW(m)*z));
@@ -850,7 +873,11 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
     private boolean hudDrag(double mx,double my) {
         if(hudResizing && hudSelected!=null) {
             // Slider and corner both use a stable initial scale while dragging.
-            double change=(mx-hudResizeStartX)/Math.max(70.0,hudWidgetW(hudSelected));
+            double dx=(mx-hudResizeStartX)/Math.max(30.0,hudWidgetW(hudSelected));
+            double dy=(my-hudResizeStartY)/Math.max(18.0,hudWidgetH(hudSelected));
+            // Diagonal resizing scales the actual rendered widget uniformly,
+            // including text/graphics, rather than just resizing a false outline.
+            double change=(dx+dy)*0.5;
             com.lovenote.util.HudScale.set(hudSelected,hudResizeStartScale+change);
             return true;
         }
@@ -3540,8 +3567,7 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
             return true;
         }
         if(drainerHudEditor) {
-            if(mx >= hudInspectorLeft && hudSelected!=null)hudSettingsScroll=Math.max(0,Math.min(hudSelected.settings.size()-1,hudSettingsScroll-(int)Math.signum(amount)));
-            else hudListScroll=Math.max(0,hudListScroll-(int)Math.signum(amount)*2);
+            hudListScroll=Math.max(0,hudListScroll-(int)Math.signum(amount)*2);
             return true;
         }
         // Scroll callbacks receive GUI-scaled mouse coordinates, like MouseButtonEvent.
@@ -3587,8 +3613,20 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
             }
             return true;
         }
-        if(drainerHudEditor && input.key()==GLFW.GLFW_KEY_ESCAPE) {
-            drainerHudEditor=false;hudDragging=null;hudSlider=null;return true;
+        if(drainerHudEditor) {
+            if(input.key()==GLFW.GLFW_KEY_ESCAPE) {
+                if(hudSearchFocused) {hudSearchFocused=false;return true;}
+                drainerHudEditor=false;hudDragging=null;hudSlider=null;return true;
+            }
+            if(input.key()==GLFW.GLFW_KEY_SLASH) {hudSearchFocused=true;return true;}
+            if(hudSearchFocused) {
+                if(input.key()==GLFW.GLFW_KEY_BACKSPACE && !hudSearch.isEmpty()) {
+                    hudSearch=hudSearch.substring(0,hudSearch.length()-1);hudListScroll=0;
+                }
+                if(input.key()==GLFW.GLFW_KEY_ENTER) hudSearchFocused=false;
+                return true;
+            }
+            return true;
         }
         int key = input.key();
         if(appearanceHexField!=0){
@@ -3628,6 +3666,13 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
 
     @Override
     public boolean charTyped(CharacterEvent input) {
+        if (drainerHudEditor) {
+            int cp=input.codepoint();
+            if(hudSearchFocused && cp>=32 && cp<127 && cp!='/' && hudSearch.length()<35) {
+                hudSearch+=(char)cp;hudListScroll=0;
+            }
+            return true;
+        }
         if (appearanceHexField!=0) {
             int cp=input.codepoint();
             if(appearanceHexInput.length()<6 && Character.digit(cp,16)>=0)appearanceHexInput+=Character.toUpperCase((char)cp);

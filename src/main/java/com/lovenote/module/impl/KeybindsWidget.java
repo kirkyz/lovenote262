@@ -22,5 +22,6 @@ public final class KeybindsWidget extends LegacyTextWidget {
             if (n >= 6) break;
         }
         if (n > 0) drawText(g, b.toString());
+        else if (mc.gui.screen() instanceof meteordevelopment.meteorclient.gui.screens.LovenoteModulesScreen hudScreen && hudScreen.isDrainerHudEditor()) drawText(g, "Keybinds  |  No active binds");
     }
 }
