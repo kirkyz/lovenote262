@@ -1,0 +1,5 @@
+src/main/java/com/lovenote/module/Category.java|existing
+src/main/java/com/lovenote/module/ModuleManager.java|existing
+src/main/java/meteordevelopment/meteorclient/gui/screens/LovenoteModulesScreen.java|existing
+src/main/java/com/lovenote/module/impl/ServerModules.java|new
+src/main/java/com/lovenote/module/impl/CubeCraftCoach.java|new

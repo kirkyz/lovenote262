@@ -68,6 +68,13 @@ public abstract class MultiPlayerGameModeMixin implements IMultiPlayerGameMode {
         }
     }
 
+    @Inject(method = "handleContainerInput", at = @At("TAIL"))
+    private void drainerCaptureContainerClick(int containerId, int slotNum, int buttonNum,
+            ContainerInput input, Player player, CallbackInfo ci) {
+        com.lovenote.module.impl.ported.DrainerServerMacros.MacroRecorder.captureContainerClick(
+            containerId, slotNum, buttonNum, input);
+    }
+
     @Inject(method = "startDestroyBlock", at = @At("HEAD"), cancellable = true)
     private void onStartDestroyBlock(BlockPos pos, Direction direction, CallbackInfoReturnable<Boolean> cir) {
         if (MeteorClient.EVENT_BUS.post(StartBreakingBlockEvent.get(pos, direction)).isCancelled()) cir.cancel();

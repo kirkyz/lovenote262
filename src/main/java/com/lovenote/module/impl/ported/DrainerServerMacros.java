@@ -382,8 +382,8 @@ public final class DrainerServerMacros {
             if(closest!=null){mc.gameMode.attack(mc.player,closest);mc.player.swing(InteractionHand.MAIN_HAND);}
         }
     }
-    /** V11: Named recorded slots, replay state, bounded recordings and shared key ownership.
-     *  Only movement-key samples are captured. No clicks, chat commands, packets or aiming.
+    /** Recorded keyboard, camera, mouse presses and bounded inventory input actions.
+     *  Server validation still applies; never used on Hypixel.
      */
     public static final class MacroRecorder extends Module {
         private final BoolSetting recording=add(new BoolSetting("Recording",false));
@@ -395,11 +395,18 @@ public final class DrainerServerMacros {
         private final NumberSetting stopHealth=add(new NumberSetting("Stop below health",6,0,20,1));
         private final BoolSetting recordLook=add(new BoolSetting("Record camera direction",true));
         private final BoolSetting recordMouse=add(new BoolSetting("Record attack/use",true));
+        private final BoolSetting recordHotbar=add(new BoolSetting("Record hotbar slot",true));
+        private final BoolSetting recordInventory=add(new BoolSetting("Record container clicks",true));
+        private int attackPresses, usePresses;
+        // Input events arrive between ticks: queue until the next frame, otherwise
+        // inventory clicks could replay on the previous WORLD frame.
+        private final java.util.List<com.lovenote.macro.MacroTape.ContainerClick> pendingClicks
+            = new java.util.ArrayList<>();
         private final com.lovenote.macro.MacroTape[] tapes = {
             new com.lovenote.macro.MacroTape(),new com.lovenote.macro.MacroTape(),
             new com.lovenote.macro.MacroTape(),new com.lovenote.macro.MacroTape(),
             new com.lovenote.macro.MacroTape()};
-        private int playIndex, activeSlot=-1;
+        private int playIndex, activeSlot=-1, waitingForContainer;
         private boolean wasRecording, wasPlaying;
         private net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> startedDimension;
         public MacroRecorder(){super("MacroRecorder",Category.MISC);
@@ -409,10 +416,38 @@ public final class DrainerServerMacros {
         /** Used by native MacroLibrary. Overwrites the selected slot, never executes automatically. */
         public void loadTemplate(int[] frames){loadTemplate(frames,null,null);}
         public void loadTemplate(int[] frames,float[] yaw,float[] pitch){
+            loadTemplate(frames,yaw,pitch,null);
+        }
+        public void loadTemplate(int[] frames,float[] yaw,float[] pitch,com.google.gson.JsonArray events){
             if(isBusy())return;
             tapes[slot.index()].setFrom(frames,yaw,pitch);
+            tapes[slot.index()].loadEvents(events);
             playIndex=0;
         }
+        /** Called by the actual GLFW press hook, not a once-per-tick held-key sample. */
+        public static void captureMousePress(int button) {
+            if (Lovenote.modules == null) return;
+            MacroRecorder r=Lovenote.modules.get(MacroRecorder.class);
+            if (r==null || !r.enabled || !r.wasRecording || !r.recordMouse.get()
+                || r.mc.gui.screen()!=null) return;
+            if (button == 0) r.attackPresses=Math.min(8,r.attackPresses+1);
+            if (button == 1) r.usePresses=Math.min(8,r.usePresses+1);
+        }
+        /** Capture validated inventory input sent through Minecraft's normal controller. */
+        public static void captureContainerClick(int containerId,int index,int button,
+                                                 net.minecraft.world.inventory.ContainerInput type) {
+            if (Lovenote.modules == null) return;
+            MacroRecorder r=Lovenote.modules.get(MacroRecorder.class);
+            if (r==null || !r.enabled || !r.wasRecording || !r.recordInventory.get()
+                || r.mc.player==null || r.mc.gui.screen()==null
+                || !(r.mc.gui.screen() instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?>)) return;
+            var menu=r.mc.player.containerMenu;
+            if (menu.containerId!=containerId) return;
+            if (r.pendingClicks.size() < 24)
+                r.pendingClicks.add(new com.lovenote.macro.MacroTape.ContainerClick(
+                    index,button,type.name(),menu.slots.size()));
+        }
+        public com.google.gson.JsonArray selectedEvents() { return tape().eventsToJson(); }
         /** Server-side rules: do not record or replay gameplay on Hypixel. */
         private boolean onHypixel(){
             if(mc.getCurrentServer()==null)return false;
@@ -453,38 +488,62 @@ public final class DrainerServerMacros {
         private com.lovenote.macro.MacroTape tape(){return tapes[slot.index()];}
         private void stopReplay(){
             com.lovenote.macro.MacroPlayback.release(mc,this);
-            wasPlaying=false; playback.set(false); playIndex=0; activeSlot=-1; startedDimension=null;
+            wasPlaying=false; playback.set(false); playIndex=0; activeSlot=-1; startedDimension=null; waitingForContainer=0;
         }
         private void stopAll(){
-            stopReplay(); recording.set(false); wasRecording=false;
+            stopReplay(); recording.set(false); wasRecording=false; attackPresses=0; usePresses=0; pendingClicks.clear();
             com.lovenote.macro.MacroPlayback.stopRecording();
         }
-        @Override public void onEnable(){stopAll();}
+        @Override public void onEnable(){
+            // Retain playback/recording requests made while enabling the module in the GUI.
+            boolean requestedPlayback = playback.get();
+            stopReplay();
+            playback.set(requestedPlayback);
+            wasRecording=false;
+            com.lovenote.macro.MacroPlayback.stopRecording();
+        }
         @Override public void onTick(){
             if(onHypixel()){stopAll();return;}
             if(clear.get()){
                 stopAll();tape().clear();clear.set(false);return;
             }
-            if(mc.player==null || mc.level==null || mc.gui.screen()!=null || !mc.player.isAlive()){
+            if(mc.player==null || mc.level==null || !mc.player.isAlive()){
                 stopAll();return;
             }
+            boolean containerScreen = mc.gui.screen() instanceof
+                net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?>;
+            if (mc.gui.screen()!=null && !containerScreen) {
+                // The ClickGUI may arm recording; wait until it closes before starting.
+                if(!wasRecording && !wasPlaying && (recording.get() || playback.get())) return;
+                stopAll();return;
+            }
+            // Inventory screens are part of a recording, not an implicit STOP command.
+            if (containerScreen && !wasRecording && !wasPlaying && (recording.get() || playback.get())) return;
             if((wasPlaying || wasRecording) && activeSlot!=slot.index()){stopAll();return;}
             if(wasPlaying && (mc.player.getHealth()<stopHealth.get()
                     || startedDimension!=mc.level.dimension())) {stopAll();return;}
             if(recording.get()){
                 if(wasPlaying)stopReplay();
-                if(!wasRecording){tape().clear();wasRecording=true;activeSlot=slot.index();}
+                if(!wasRecording){tape().clear();wasRecording=true;activeSlot=slot.index();attackPresses=0;usePresses=0;}
                 if(tape().size()>=Math.min(com.lovenote.macro.MacroTape.MAX_TICKS,maxSeconds.getI()*20)){
                     recording.set(false);wasRecording=false;
                     com.lovenote.macro.MacroPlayback.stopRecording();return;
                 }
-                int mask=(mc.options.keyUp.isDown()?1:0)|(mc.options.keyDown.isDown()?2:0)
+                int mask=containerScreen ? 0 :
+                    (mc.options.keyUp.isDown()?1:0)|(mc.options.keyDown.isDown()?2:0)
                     |(mc.options.keyLeft.isDown()?4:0)|(mc.options.keyRight.isDown()?8:0)
                     |(mc.options.keyJump.isDown()?16:0)|(mc.options.keyShift.isDown()?32:0)
                     |(recordMouse.get()&&mc.options.keyAttack.isDown()?64:0)
                     |(recordMouse.get()&&mc.options.keyUse.isDown()?128:0);
+                if(recordHotbar.get()) mask |= 4096 | (mc.player.getInventory().getSelectedSlot() << 8);
                 tape().append(mask,recordLook.get()?mc.player.getYRot():Float.NaN,
                     recordLook.get()?mc.player.getXRot():Float.NaN);
+                int mode=containerScreen ? (mc.player.containerMenu==mc.player.inventoryMenu?1:2) : 0;
+                tape().markLastFrame(mode,attackPresses,usePresses);
+                for (var click : pendingClicks) tape().addClickToLastFrame(
+                    click.slot(),click.button(),click.type(),click.slotCount());
+                pendingClicks.clear();
+                attackPresses=0;usePresses=0;
                 com.lovenote.macro.MacroPlayback.recordStatus(slot.get(),tape().size());
                 return;
             }
@@ -500,13 +559,24 @@ public final class DrainerServerMacros {
                 playIndex=0;wasPlaying=true;activeSlot=slot.index();startedDimension=mc.level.dimension();
             }
             if(playIndex>=tape().size()){
-                if(loop.get())playIndex=0;
-                else {stopReplay();return;}
+                if(loop.get()){
+                    playIndex=0;
+                    com.lovenote.macro.MacroPlayback.resetEdges();
+                } else {stopReplay();return;}
             }
+            // A chest may take a few ticks to open after recorded right-click.
+            // Wait rather than replaying clicks against a wrong inventory.
+            if(tape().getScreen(playIndex)==2 && !(mc.gui.screen() instanceof
+                net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?>)) {
+                if(++waitingForContainer > 40) stopReplay();
+                return;
+            }
+            waitingForContainer=0;
             int i=playIndex++;
             int mask=tape().get(i);
-            com.lovenote.macro.MacroPlayback.apply(mc,this,slot.get(),mask,playIndex,tape().size(),
-                tape().getYaw(i),tape().getPitch(i));
+            if (!com.lovenote.macro.MacroPlayback.apply(mc,this,slot.get(),mask,playIndex,tape().size(),
+                tape().getYaw(i),tape().getPitch(i), tape().getTaps(i), tape().getScreen(i),
+                tape().getContainerClicks(i))) stopReplay();
         }
         @Override public void onDisable(){stopAll();}
         @Override public void saveExtra(JsonObject o){
@@ -516,6 +586,9 @@ public final class DrainerServerMacros {
             com.google.gson.JsonArray angles=new com.google.gson.JsonArray();
             for(var tape:tapes)angles.add(tape.rotationsToJson());
             o.add("macroAnglesV15",angles);
+            com.google.gson.JsonArray events=new com.google.gson.JsonArray();
+            for(var tape:tapes) events.add(tape.eventsToJson());
+            o.add("macroEventsV31",events);
         }
         @Override public void loadExtra(JsonObject o){
             stopAll();
@@ -526,6 +599,10 @@ public final class DrainerServerMacros {
                 if(o.has("macroAnglesV15") && o.get("macroAnglesV15").isJsonArray()){
                     var angles=o.getAsJsonArray("macroAnglesV15");
                     for(int i=0;i<Math.min(tapes.length,angles.size());i++)tapes[i].loadRotations(angles.get(i));
+                }
+                if(o.has("macroEventsV31") && o.get("macroEventsV31").isJsonArray()){
+                    var events=o.getAsJsonArray("macroEventsV31");
+                    for(int i=0;i<Math.min(tapes.length,events.size());i++)tapes[i].loadEvents(events.get(i));
                 }
             } else if(o.has("macroSamples")){
                 // Migrate the existing V10.1 recording to Slot 1.

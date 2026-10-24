@@ -40,6 +40,7 @@ public final class SpotifyManager {
     public volatile Identifier artTexture;
     private volatile String lastCover = "";
     private volatile boolean started;
+    private volatile long lastSuccessfulPollNanos;
     private SpotifyManager() {}
 
     private Path helper() {
@@ -58,8 +59,15 @@ public final class SpotifyManager {
             while (!Thread.currentThread().isInterrupted()) {
                 try { poll(); Thread.sleep(850); }
                 catch (InterruptedException e) { Thread.currentThread().interrupt(); }
-                catch (Exception e) { clearPlayback("Bridge error: " + e.getMessage());
-                    try { Thread.sleep(2500); } catch (InterruptedException x) { Thread.currentThread().interrupt(); } }
+                catch (Exception e) {
+                    // A single short-lived bridge failure must not erase the
+                    // track identity and force lyrics to refetch from scratch.
+                    // After a sustained outage, clear the now-stale session.
+                    if (lastSuccessfulPollNanos == 0L || System.nanoTime() - lastSuccessfulPollNanos
+                        > TimeUnit.SECONDS.toNanos(6)) clearPlayback("Bridge error: " + e.getMessage());
+                    else status = "Bridge reconnecting";
+                    try { Thread.sleep(1200); } catch (InterruptedException x) { Thread.currentThread().interrupt(); }
+                }
             }
         }, "Drainer-Spotify-Poll");
         t.setDaemon(true);
@@ -112,6 +120,7 @@ public final class SpotifyManager {
     /** Called only with mediaIoLock held. Never run two bridge processes together. */
     private void pollLocked() throws Exception {
         JsonObject o = execute();
+        lastSuccessfulPollNanos = System.nanoTime();
         if (!o.has("found") || !o.get("found").getAsBoolean()) {
             clearPlayback("Open Spotify and play a track");
             connected = true;
@@ -121,10 +130,14 @@ public final class SpotifyManager {
         boolean freshPlaying = o.has("playing") && o.get("playing").getAsBoolean();
         long reported = Math.max(0, o.has("progressMs") ? o.get("progressMs").getAsLong() : 0);
         long freshDuration = Math.max(0, o.has("durationMs") ? o.get("durationMs").getAsLong() : 0);
-        String identity = freshTitle + "|" + freshArtist + "|" + freshDuration;
+        // Duration varies slightly across bridge samples. It must not reset
+        // the lyric clock or cache key on every poll.
+        String identity = freshTitle + "|" + freshArtist + "|" + str(o,"album");
         long now = System.nanoTime();
         synchronized (this) {
-            boolean changed = !identity.equals(clockTrack) || !hasTrack;
+            boolean changed = !identity.equals(clockTrack) || !hasTrack
+                || (freshDuration > 0 && durationMs > 0
+                    && Math.abs(freshDuration - durationMs) > 7000);
             boolean previousPlaying = playing;
             long predicted = progress();
             long anchor = reported;
@@ -150,15 +163,20 @@ public final class SpotifyManager {
                     rewindSamples = 0;
                 } else {
                     rewindSamples = 0;
-                    // The expected clock is authoritative through small backwards
-                    // and repeated media-session samples; accept obvious forwards seeks.
-                    anchor = reported > predicted + 850 ? reported : predicted;
+                    // Don't keep taking the maximum: it accumulates positive timing
+                    // noise and eventually makes lyrics run ahead of Spotify.
+                    long error = reported - predicted;
+                    if (error > 2500) anchor = reported; // obvious forward seek
+                    else if (Math.abs(error) > 450)
+                        anchor = predicted + Math.max(-160, Math.min(160, error));
+                    else anchor = predicted;
                 }
             } else if (!changed && !freshPlaying && !previousPlaying) {
                 // Paused sessions should remain frozen, even if bridge samples drift.
                 anchor = Math.abs(reported - predicted) > 1500 ? reported : predicted;
             } else if (!changed && !freshPlaying) {
-                anchor = Math.max(predicted, reported);
+                // One last reported position on pause; never run the paused clock.
+                anchor = Math.abs(reported - predicted) > 1500 ? reported : predicted;
             }
             if (freshDuration > 0) anchor = Math.min(anchor, freshDuration);
             clockTrack = identity;

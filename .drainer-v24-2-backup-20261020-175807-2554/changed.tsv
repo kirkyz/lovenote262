@@ -1,0 +1,5 @@
+src/main/java/meteordevelopment/meteorclient/gui/screens/LovenoteModulesScreen.java|existing
+src/main/java/meteordevelopment/meteorclient/gui/screens/SkyBlockGuideScreen.java|existing
+src/main/java/com/lovenote/util/Ui.java|existing
+src/main/java/com/lovenote/module/impl/Lyrics.java|existing
+src/main/java/meteordevelopment/meteorclient/gui/themes/lovenote/DrainerSkin.java|new

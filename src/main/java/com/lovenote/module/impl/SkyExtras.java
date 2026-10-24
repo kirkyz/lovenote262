@@ -3,8 +3,10 @@ package com.lovenote.module.impl;
 import com.lovenote.module.Category;
 import com.lovenote.module.Module;
 import com.lovenote.setting.BoolSetting;
+import com.lovenote.setting.ModeSetting;
 import com.lovenote.setting.NumberSetting;
 import com.lovenote.util.Colors;
+import com.lovenote.util.SkyColorMath;
 import com.lovenote.util.Fx;
 import com.lovenote.util.Gl;
 import com.lovenote.util.Tex;
@@ -20,6 +22,8 @@ import java.util.Random;
 public class SkyExtras extends Module {
 	private final BoolSetting planet = add(new BoolSetting("Ringed planet", true));
 	private final NumberSetting planetSize = add(new NumberSetting("Planet size", 30, 6, 120, 1));
+    private final NumberSetting ringWidth = add(new NumberSetting("Planet ring width", 7, 1, 22, 1));
+    private final NumberSetting ringTilt = add(new NumberSetting("Planet ring tilt", .34, .08, .85, .02));
 	private final BoolSetting twinSuns = add(new BoolSetting("Twin suns", false));
 	private final BoolSetting rainbow = add(new BoolSetting("Rainbow arc", true));
 	private final NumberSetting rainbowAlpha = add(new NumberSetting("Rainbow opacity", 70, 0, 255, 5));
@@ -29,12 +33,28 @@ public class SkyExtras extends Module {
 	private final NumberSetting bandAlpha = add(new NumberSetting("Band opacity", 40, 0, 200, 5));
 	private final BoolSetting overworldOnly = add(new BoolSetting("Overworld only", true));
 	private final NumberSetting opacity = add(new NumberSetting("Opacity", 210, 20, 255, 5));
+    private final ModeSetting palette = add(new ModeSetting("Sky extras colours", "Theme", "Theme", "Custom", "Rainbow"));
+    private final NumberSetting hueA = add(new NumberSetting("Primary hue", 264, 0, 360, 1));
+    private final NumberSetting hueB = add(new NumberSetting("Secondary hue", 322, 0, 360, 1));
+    private final NumberSetting saturation = add(new NumberSetting("Saturation", 80, 0, 100, 1));
+    private final NumberSetting brightness = add(new NumberSetting("Brightness", 95, 0, 100, 1));
+    private final NumberSetting motion = add(new NumberSetting("Motion speed", 1, 0, 3, 0.05));
 
 	private static final float R = 300f;
 	private final Random rnd = new Random();
 	private long lastBolt;
 	private float boltX, boltY, boltZ, boltLife;
 	private float[] bandSeed;
+    private final float[] boltOffsets = new float[12 * 2];
+    private long previousFrameNanos;
+
+    private int tint(float phase) {
+        if (palette.is("Rainbow")) return Colors.rainbow(phase);
+        if (palette.is("Theme")) return Colors.skeet(phase);
+        return SkyColorMath.mix(
+           SkyColorMath.hsv(hueA.getF(),saturation.getF()/100f,brightness.getF()/100f),
+           SkyColorMath.hsv(hueB.getF(),saturation.getF()/100f,brightness.getF()/100f),phase);
+    }
 
 	public SkyExtras() {
 		super("SkyExtras", Category.VISUALS);
@@ -49,7 +69,10 @@ public class SkyExtras extends Module {
 		Matrix4f mat = stack.last().pose();
 		var cam = ctx.camera().position();
 		double cx = cam.x, cy = cam.y, cz = cam.z;
-		float t = System.currentTimeMillis() / 1000f;
+		long nano = System.nanoTime();
+        float dt = previousFrameNanos == 0 ? 0f : Math.min(0.1f, Math.max(0f,(nano - previousFrameNanos)*1e-9f));
+        previousFrameNanos = nano;
+        float t = ((nano % 3_600_000_000_000L)*1e-9f) * motion.getF();
 		float td = ctx.tickDelta();
 		float skyAng = Gl.skyAngle(mc.level, td) * 6.28318f;
 		int op = opacity.getI();
@@ -62,18 +85,36 @@ public class SkyExtras extends Module {
 			float px = (float) (cx + Mth.cos(pAng) * R * 0.8f);
 			float pz = (float) (cz + Mth.sin(pAng) * R * 0.8f);
 			float py = (float) cy + 150f;
-			int col = Colors.alpha(Colors.lerp(0xFF8AB4FF, 0xFFC4B5FD, 0.5f), op);
+			int col = Colors.alpha(tint(0.5f), op);
 			Fx.texture(Tex.GLOW);
 			MeshBuilder b = Fx.texQuads();
 			Fx.billboard(b, mat, px, py, pz, planetSize.getF() * 1.5f, Colors.alpha(col, op / 3));
 			Fx.billboard(b, mat, px, py, pz, planetSize.getF(), col);
-			float rw = planetSize.getF() * 1.9f;
-			for (int i = 0; i < 3; i++) {
-				float rr = rw * (0.8f + i * 0.14f);
-				int a = (int) (op * 0.5f * (1f - i * 0.25f));
-				Fx.billboard(b, mat, px, py + i * 0.6f, pz, rr, Colors.alpha(col, a));
-			}
 			Fx.draw();
+            // The old "ring" was three glowing squares. This is an actual angled annulus.
+            MeshBuilder rb = Fx.colorQuads();
+            float inner = planetSize.getF() * .73f;
+            float outer = inner + ringWidth.getF();
+            float tilt = ringTilt.getF();
+            for (int i=0;i<48;i++) {
+                float a0=(float)(i*2*Math.PI/48), a1=(float)((i+1)*2*Math.PI/48);
+                float c0=Mth.cos(a0), c1=Mth.cos(a1), s0=Mth.sin(a0), s1=Mth.sin(a1);
+                int tint0=Colors.alpha(tint(i/48f),Math.round(op*.7f));
+                int tint1=Colors.alpha(tint(i/48f),Math.round(op*.4f));
+                Fx.vc(rb,mat,px+Fx.RIGHT.x*c0*inner+Fx.UP.x*s0*inner*tilt,
+                    py+Fx.RIGHT.y*c0*inner+Fx.UP.y*s0*inner*tilt,
+                    pz+Fx.RIGHT.z*c0*inner+Fx.UP.z*s0*inner*tilt,tint0);
+                Fx.vc(rb,mat,px+Fx.RIGHT.x*c1*inner+Fx.UP.x*s1*inner*tilt,
+                    py+Fx.RIGHT.y*c1*inner+Fx.UP.y*s1*inner*tilt,
+                    pz+Fx.RIGHT.z*c1*inner+Fx.UP.z*s1*inner*tilt,tint0);
+                Fx.vc(rb,mat,px+Fx.RIGHT.x*c1*outer+Fx.UP.x*s1*outer*tilt,
+                    py+Fx.RIGHT.y*c1*outer+Fx.UP.y*s1*outer*tilt,
+                    pz+Fx.RIGHT.z*c1*outer+Fx.UP.z*s1*outer*tilt,tint1);
+                Fx.vc(rb,mat,px+Fx.RIGHT.x*c0*outer+Fx.UP.x*s0*outer*tilt,
+                    py+Fx.RIGHT.y*c0*outer+Fx.UP.y*s0*outer*tilt,
+                    pz+Fx.RIGHT.z*c0*outer+Fx.UP.z*s0*outer*tilt,tint1);
+            }
+            Fx.draw();
 		}
 
 		if (twinSuns.get()) {
@@ -83,7 +124,7 @@ public class SkyExtras extends Module {
 				float a2 = skyAng + k * 0.35f;
 				float sx = (float) (cx + Mth.cos(a2) * R);
 				float sy = (float) (cy + Mth.sin(a2) * R);
-				int col = Colors.alpha(k == 0 ? 0xFFFFE9A8 : 0xFFFFC48A, op);
+				int col = Colors.alpha(tint(k * 0.7f), op);
 				Fx.billboard(b, mat, sx, sy, (float) cz, 60f, Colors.alpha(col, op / 2));
 				Fx.billboard(b, mat, sx, sy, (float) cz, 30f, col);
 			}
@@ -133,7 +174,7 @@ public class SkyExtras extends Module {
 				float y = (float) cy + 90f + bandSeed[i * 3 + 1] * 90f;
 				float x = (float) (cx + Math.cos(ang) * rad);
 				float z = (float) (cz + Math.sin(ang) * rad);
-				int col = Colors.alpha(Colors.lerp(Colors.C1, 0xFFFFFFFF, 0.4f), a);
+				int col = Colors.alpha(SkyColorMath.mix(tint(i / 14f), 0xFFFFFFFF, 0.25f), a);
 				Fx.billboard(b, mat, x, y, z, 140f + bandSeed[i * 3 + 2] * 120f, col);
 			}
 			Fx.draw();
@@ -141,13 +182,14 @@ public class SkyExtras extends Module {
 
 		if (bolts.get()) {
 			long now = System.currentTimeMillis();
-			if (boltLife <= 0f && rnd.nextFloat() < boltRate.get() * 0.04f) {
+			if (boltLife <= 0f && rnd.nextFloat() < Math.min(1f,boltRate.getF() * dt * 0.5f)) {
 				float a2 = rnd.nextFloat() * 6.2832f;
 				boltX = (float) (cx + Math.cos(a2) * R * 0.7f);
 				boltZ = (float) (cz + Math.sin(a2) * R * 0.7f);
 				boltY = (float) cy + 120f + rnd.nextFloat() * 60f;
 				boltLife = 0.55f;
-				lastBolt = now;
+                lastBolt = now;
+                for (int k=0;k<12;k++) { boltOffsets[k*2]=(rnd.nextFloat()-0.5f)*26f; boltOffsets[k*2+1]=(rnd.nextFloat()-0.5f)*26f; }
 			}
 			if (boltLife > 0f) {
 				boltLife -= (now - lastBolt) / 1000f;
@@ -157,15 +199,15 @@ public class SkyExtras extends Module {
 				if (a > 4) {
 					Fx.texture(Tex.SOFT);
 					MeshBuilder b = Fx.texQuads();
-					Fx.billboard(b, mat, boltX, boltY, boltZ, 220f, Colors.alpha(0xFFCFE6FF, a / 4));
-					Fx.billboard(b, mat, boltX, boltY, boltZ, 90f, Colors.alpha(0xFFFFFFFF, a));
+					Fx.billboard(b, mat, boltX, boltY, boltZ, 220f, Colors.alpha(tint(.2f), a / 4));
+					Fx.billboard(b, mat, boltX, boltY, boltZ, 90f, Colors.alpha(tint(.8f), a));
 					float y = boltY;
 					float x = boltX, z = boltZ;
 					for (int i = 0; i < 12; i++) {
-						x += (rnd.nextFloat() - 0.5f) * 26f;
-						z += (rnd.nextFloat() - 0.5f) * 26f;
+						x += boltOffsets[i*2];
+                        z += boltOffsets[i*2+1];
 						y -= 22f;
-						Fx.billboard(b, mat, x, y, z, 26f, Colors.alpha(0xFFFFFFFF, a / 2));
+						Fx.billboard(b, mat, x, y, z, 26f, Colors.alpha(tint(.4f), a / 2));
 					}
 					Fx.draw();
 				}

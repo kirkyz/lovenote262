@@ -148,6 +148,32 @@ public final class Vfx {
 		}
 	}
 
+    /** Filled rotating cube with subtle per-face lighting. Uses the existing 26.2 colour-quad pipeline. */
+    public static void cubeFaces(MeshBuilder b, Matrix4f m, P c, double half,
+                                 double yaw, double pitch, double roll, int color, int alpha) {
+        P[] v = new P[8];
+        int i = 0;
+        for (int xi = -1; xi <= 1; xi += 2)
+            for (int yi = -1; yi <= 1; yi += 2)
+                for (int zi = -1; zi <= 1; zi += 2) {
+                    P p = rot(new P(xi * half, yi * half, zi * half), yaw, pitch, roll);
+                    v[i++] = new P(c.x + p.x, c.y + p.y, c.z + p.z);
+                }
+        int[][] faces = {{0,2,3,1},{4,5,7,6},{0,1,5,4},
+                         {2,6,7,3},{0,4,6,2},{1,3,7,5}};
+        float[] light = {0.62f,0.86f,0.76f,1.0f,0.68f,0.92f};
+        for (int f = 0; f < faces.length; f++) {
+            int r = Math.min(255, Math.round(((color >>> 16) & 255) * light[f]));
+            int g = Math.min(255, Math.round(((color >>> 8) & 255) * light[f]));
+            int blue = Math.min(255, Math.round((color & 255) * light[f]));
+            int shaded = (Math.max(0, Math.min(255, alpha)) << 24) | (r << 16) | (g << 8) | blue;
+            for (int vertex : faces[f]) {
+                P p = v[vertex];
+                Fx.vc(b, m, (float)p.x, (float)p.y, (float)p.z, shaded);
+            }
+        }
+    }
+
 	public static void crystal(MeshBuilder b, Matrix4f m, P c, double r, double h,
 							   double yaw, double pitch, double roll, float th,
 							   int top, int bottom,

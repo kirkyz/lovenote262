@@ -80,6 +80,7 @@ public class ModuleManager {
 		register(new PearlTrajectory());
 		register(new WeaponInspect());
 		register(new SkyExtras());
+		register(new VisualCollection());
 		register(new CubeField());
 		register(new CrystalHalo());
 		register(new AuroraVeil());
@@ -288,6 +289,8 @@ public class ModuleManager {
         register(new MacroRecorder());
         register(new MacroLibrary());
         register(new SkyBlockCoach());
+        register(new ServerModules());
+        register(new CubeCraftCoach());
         register(new SchematicAssist());
         register(new MacroStatusHud());
 

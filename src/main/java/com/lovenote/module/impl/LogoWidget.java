@@ -48,11 +48,11 @@ public class LogoWidget extends Module implements HudWidgetBounds {
 	private final ModeSetting nameText = add(new ModeSetting("Name", "lovenote", "lovenote", "Lovenote", "Custom"));
 	private final ModeSetting customName = add(new ModeSetting("Custom", "lovenote", "lovenote", "Custom"));
 	private final ModeSetting nameColour = add(new ModeSetting("Name colour", "Gradient", "Gradient", "Accent", "White"));
-	private final BoolSetting info = add(new BoolSetting("Show info", true));
+	private final BoolSetting info = add(new BoolSetting("Show info", false));
 	private final BoolSetting showFps = add(new BoolSetting("FPS", true));
 	private final BoolSetting showTime = add(new BoolSetting("Time", true));
 	private final BoolSetting showServer = add(new BoolSetting("Server", false));
-	private final NumberSetting gap = add(new NumberSetting("Gap", 4, 0, 18, 1));
+	private final NumberSetting gap = add(new NumberSetting("Gap", 7, 0, 18, 1));
 
 	public LogoWidget() {
 		super("LogoWidget", Category.HUD);

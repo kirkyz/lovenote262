@@ -20,7 +20,7 @@ import java.util.Map;
 /** Native SkyBlock-oriented input templates plus durable user recordings; never executes until requested. */
 public final class MacroLibrary extends Module {
     public record Preset(String name, String group, String detail, boolean saved) { }
-    private record Saved(int[] frames, float[] yaw, float[] pitch, String group) { }
+    private record Saved(int[] frames, float[] yaw, float[] pitch, com.google.gson.JsonArray events, String group) { }
     private record Builtin(String name, String group, String detail, int[] frames) { }
     private static final int LIMIT = 48;
     private static final int F=1,B=2,L=4,R=8,J=16,S=32,A=64,U=128;
@@ -70,7 +70,7 @@ public final class MacroLibrary extends Module {
         if(r==null||r.isBusy())return false;
         int[] frames=r.selectedFrames();
         if(frames.length==0)return false;
-        custom.put(cleaned,new Saved(frames.clone(),r.selectedYaw(),r.selectedPitch(),"My recordings"));
+        custom.put(cleaned,new Saved(frames.clone(),r.selectedYaw(),r.selectedPitch(),r.selectedEvents(),"My recordings"));
         return true;
     }
     public synchronized boolean deleteSaved(String name){return custom.remove(name)!=null;}
@@ -78,7 +78,7 @@ public final class MacroLibrary extends Module {
         MacroRecorder r=recorder();
         if(r==null||r.isBusy())return false;
         Saved saved=custom.get(name);
-        if(saved!=null){r.loadTemplate(saved.frames().clone(),saved.yaw().clone(),saved.pitch().clone());return true;}
+        if(saved!=null){r.loadTemplate(saved.frames().clone(),saved.yaw().clone(),saved.pitch().clone(),saved.events());return true;}
         for(Builtin b:BUILTINS)if(b.name().equals(name)){
             r.loadTemplate(effectiveFrames(b).clone());return true;
         }
@@ -118,6 +118,9 @@ public final class MacroLibrary extends Module {
         // Old key deliberately preserved for importing presets after an installer rollback.
         o.add("namedMacrosV13",presets);
         o.add("namedMacroLookV15",look);
+        JsonObject events = new JsonObject();
+        custom.forEach((name,saved)->events.add(name,saved.events().deepCopy()));
+        o.add("namedMacroEventsV31",events);
     }
     @Override public synchronized void loadExtra(JsonObject o){
         custom.clear();
@@ -130,7 +133,7 @@ public final class MacroLibrary extends Module {
                 if(name.isBlank()||name.length()>36||isBuiltin(name))continue;
                 JsonArray samples=entry.getAsJsonArray("frames");
                 int[] frames=new int[Math.min(MacroTape.MAX_TICKS,samples.size())];
-                for(int i=0;i<frames.length;i++)frames[i]=samples.get(i).getAsInt()&255;
+                for(int i=0;i<frames.length;i++)frames[i]=samples.get(i).getAsInt()&8191;
                 if(frames.length==0)continue;
                 String group=entry.has("group")?entry.get("group").getAsString():"My recordings";
                 float[] yaw=missing(frames.length),pitch=missing(frames.length);
@@ -149,7 +152,12 @@ public final class MacroLibrary extends Module {
                         }
                     }
                 }
-                custom.put(name,new Saved(frames,yaw,pitch,group));
+                JsonArray events = new JsonArray();
+                if (o.has("namedMacroEventsV31") && o.get("namedMacroEventsV31").isJsonObject()) {
+                    JsonObject all = o.getAsJsonObject("namedMacroEventsV31");
+                    if (all.has(name) && all.get(name).isJsonArray()) events = all.getAsJsonArray(name).deepCopy();
+                }
+                custom.put(name,new Saved(frames,yaw,pitch,events,group));
             }catch(RuntimeException ignored){}
         }
     }

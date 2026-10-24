@@ -42,12 +42,35 @@ public class LovenoteModulesScreen extends TabScreen {
     private static final int PW = 208, PH = 320, ACC_COLS = 11, RAIL_MIN = 46;
     private static final String[] MACRO_WORKSPACE_LABELS = {"Guides", "Library", "SkyBlock", "Schems"};
     private static final String[] MACRO_SKYBLOCK_TRACKS = {"START", "LEVELS", "GARDEN", "MINING", "COMBAT", "COINS"};
-    // Existing registry placeholders stay untouched. Only their menu grouping changes.
+    // V60: existing 26.2 Meteor Combat implementations form the working Rage
+    // catalogue. Legacy native names below remain for compatibility only; their
+    // UnportedModule stubs are hidden until the user explicitly shows unfinished
+    // modules in Config. Never mark an unported stub as a working feature.
     private static final Set<String> RAGE_MODULES = Set.of(
         "Aura", "KillAura", "AimAssist", "Triggerbot", "Criticals", "WTap",
         "AutoClicker", "AutoCrystal", "CrystalTap", "CrystalBreak", "Backtrack",
         "TargetStrafe", "AutoWeb", "Reach", "Surround", "AutoTrap",
-        "AutoCity", "OldCombat"
+        "AutoCity", "OldCombat", "AutoAnchor", "AutoJumpReset"
+    );
+    // Extra PvP-specific Meteor utilities that already have Java implementations
+    // and are registered for Minecraft 26.2. They remain available in their
+    // original categories too; Rage is an additional view, not a migration.
+    private static final Set<String> RAGE_METEOR_EXTRAS = Set.of(
+        "auto-clicker", "auto-gap", "auto-replenish", "chest-swap",
+        "exp-thrower", "fake-player", "instant-rebreak", "no-rotate",
+        "reach", "rotation", "speed-mine", "blink", "no-slow",
+        "velocity", "no-fall", "anti-void", "step", "scaffold",
+        "city-esp", "hole-esp", "pop-chams", "logout-spots",
+        "trajectories", "packet-mine", "timer", "no-mining-trace",
+        "esp", "tracers", "nametags", "chams"
+    );
+    // Native modules with working code which are relevant to PvP. This is
+    // intentionally a curated list, not a blanket import of server macros.
+    private static final Set<String> RAGE_NATIVE_EXTRAS = Set.of(
+        "Velocity", "AntiBot", "AutoPotion", "EmergencyGap",
+        "OffhandTotem", "ServerMobAura", "HypixelNoSlow", "PearlTrajectory",
+        "HitParticles", "HitMarker", "HitSound", "HitLog", "TargetHud",
+        "DamageIndicator", "KillEffects", "PopEffects", "TotemSpirit"
     );
     private static int mainX = Integer.MIN_VALUE, mainY, panX = Integer.MIN_VALUE, panY, page;
     private static long sessionStart;
@@ -158,13 +181,18 @@ public class LovenoteModulesScreen extends TabScreen {
     }
     public boolean isDrainerHudEditor() { return drainerHudEditor; }
     private static boolean hudModule(com.lovenote.module.Module m) {
+        // The combined Music widget already contains the lyrics. Do not show an
+        // invisible redundant Lyrics Only tile while Player + Lyrics is active.
+        if (m instanceof com.lovenote.module.impl.Lyrics
+            && com.lovenote.module.impl.SpotifyHud.isIntegratedLyricsActive()) return false;
         if (m.hidden) return false;
         // HUD effects without a position (e.g. screen flashes, world tint) are
         // still configurable in their normal module category, not in a draggable editor.
         boolean hudCategory = m.category == com.lovenote.module.Category.HUD
             || m.category == com.lovenote.module.Category.SPOTIFY
             || m.alsoIn.contains(com.lovenote.module.Category.HUD)
-            || m instanceof com.lovenote.module.impl.ported.DrainerServerMacros.OffhandTotem;
+            || m instanceof com.lovenote.module.impl.ported.DrainerServerMacros.OffhandTotem
+            || m instanceof com.lovenote.module.impl.CubeCraftCoach;
         if (!hudCategory) return false;
         boolean positioned = m instanceof com.lovenote.util.HudWidgetBounds
             || m instanceof com.lovenote.module.impl.SpotifyHud
@@ -180,6 +208,7 @@ public class LovenoteModulesScreen extends TabScreen {
         boolean media = m.category == com.lovenote.module.Category.SPOTIFY;
         boolean tools = m instanceof com.lovenote.module.impl.SchematicAssist
             || m instanceof com.lovenote.module.impl.SkyBlockCoach
+            || m instanceof com.lovenote.module.impl.CubeCraftCoach
             || m.name.equalsIgnoreCase("RegionMap") || m.name.equalsIgnoreCase("Compass")
             || m.name.equalsIgnoreCase("Keystrokes")
             || m.name.equalsIgnoreCase("OffhandTotem");
@@ -1019,7 +1048,9 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
                 String name = m.name.toLowerCase(java.util.Locale.ROOT);
                 boolean unported = m instanceof com.lovenote.module.UnportedModule;
                 if (unported && (!showUnported || meteorNames.contains(name))) continue;
-                int i = m.category == com.lovenote.module.Category.SPOTIFY ? cats.size()
+                int i = (m.category == com.lovenote.module.Category.DONUT || m.category == com.lovenote.module.Category.HYPIXEL)
+                        ? catIndex(com.lovenote.module.Category.SERVER_MODULES)
+                        : m.category == com.lovenote.module.Category.SPOTIFY ? cats.size()
                         : RAGE_MODULES.contains(m.name) ? catIndex(com.lovenote.module.Category.RAGE)
                         : catIndex(m.category);
                 if (i >= 0 && exposed.add(name)) allModules.add(new LRow(m, i));
@@ -1039,7 +1070,8 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
 
         cats.clear();
         for (com.lovenote.module.Category c : com.lovenote.module.Category.values()) {
-            if (c == com.lovenote.module.Category.SPOTIFY || c == com.lovenote.module.Category.THEMES) continue;
+            if (c == com.lovenote.module.Category.SPOTIFY || c == com.lovenote.module.Category.THEMES
+                    || c == com.lovenote.module.Category.DONUT || c == com.lovenote.module.Category.HYPIXEL) continue;
             cats.add(c);
         }
         buildRows();
@@ -1590,7 +1622,8 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
         ga = eo;
 
         ctx.fill(0, 0, width, height, LovenotePalette.alpha(0x000000,
-                (int) ((LovenoteMenuConfig.style.equals("Moon") ? 90 : 130) * eo)));
+                (int) ((LovenoteMenuConfig.style.equals("Moon") ? 90 : 130) * eo
+                    * Math.max(0, Math.min(100, LovenoteMenuConfig.opacity)) / 100f)));
         // Moon HUD: deliberate absence of ambient fog and menu confetti.
         for (int i = 0; i < particleCount && i < px.length; i++) {
             // Frame-rate independent particles: avoid faster animation on high FPS
@@ -1867,7 +1900,7 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
         final int menuGlow = Mth.clamp(LovenoteMenuConfig.glow, 0, 12);
         final int reflection = Mth.clamp(LovenoteMenuConfig.widgetSheen, 0, 130);
         final int paneAlpha = Mth.clamp(Math.round(248f *
-                LovenoteMenuConfig.opacity / 100f), 99, 248);
+                LovenoteMenuConfig.opacity / 100f), 8, 248);
 
         // Two fixed-cost passes at most; no glow loops or blurred fullscreen shaders.
         if (LovenoteMenuConfig.shadow) {
@@ -2205,7 +2238,9 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
                                  int left, int top, int areaW, int bottom,
                                  String q, boolean interactive) {
         List<Row> list = visibleModules(q);
-        final int gap = 12, rowH = 54;
+        // V30: responsive, comfortably spaced glass cards. Compact mode remains available.
+        final int gap = LovenoteMenuConfig.compact ? 10 : 12;
+        final int rowH = LovenoteMenuConfig.compact ? 61 : 78;
         final int columns = areaW >= 555 ? 2 : 1;
         final int tileW = Math.max(96, (areaW - gap * (columns - 1)) / columns);
         final int rows = (list.size() + columns - 1) / columns;
@@ -2218,7 +2253,7 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
         // V28: a shared, opacity-aware surface instead of a stack of card fills.
         // At minimum opacity the world remains visible behind the library.
         final int libraryAlpha = Mth.clamp(Math.round(83f *
-                LovenoteMenuConfig.opacity / 100f), 13, 83);
+                LovenoteMenuConfig.opacity / 100f), 0, 83);
         rr(ctx, left, top, areaW, Math.max(0, bottom - top), 12,
                 LovenotePalette.alpha(0x131629, libraryAlpha));
         ctx.enableScissor(left, top, left + areaW, bottom);
@@ -2237,46 +2272,48 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
             final int accent = LovenotePalette.C2;
             final float intensity = Math.max(focus, hover * 0.70f);
 
-            // V28 editorial selection: a soft focus strip, a hairline edge,
-            // and no opaque box painted behind every module.
+            // V30 glass card: one clipped, opacity-aware surface, no expensive blur pass.
+            final int glass = Mth.clamp(Math.round((active ? 62f : 40f)
+                    * LovenoteMenuConfig.opacity / 100f), 0, 62);
+            final int cardTop = y + 3, cardH = rowH - 7;
+            if (glass > 0) rr(ctx, x + 2, cardTop, tileW - 4, cardH, 10,
+                    LovenotePalette.alpha(active ? 0x24213A : 0x171628, glass));
             if (intensity > 0.01f) {
-                rr(ctx, x + 2, y + 4, tileW - 4, rowH - 9, 7,
-                        LovenotePalette.alpha(accent, Math.round(7 + 23 * intensity)));
-                fill(ctx, x + 3, y + 13, x + 5, y + rowH - 14,
-                        LovenotePalette.alpha(accent, Math.round(62 + 162 * intensity)));
+                rr(ctx, x + 2, cardTop, tileW - 4, cardH, 10,
+                        LovenotePalette.alpha(accent, Math.round(3 + 25 * intensity)));
+                fill(ctx, x + 3, y + 15, x + 5, y + rowH - 16,
+                        LovenotePalette.alpha(accent, Math.round(45 + 155 * intensity)));
             }
-            // A unified grid rhythm, even when the glass surface is transparent.
-            if (y + rowH <= bottom + 1) {
-                fill(ctx, x + 20, y + rowH - 1, x + tileW - 20, y + rowH,
-                        0x1C8D92B4);
-            }
+            // A restrained top hairline helps define the glass without opacity spikes.
+            if (glass > 0) fill(ctx, x + 16, y + 4, x + tileW - 16, y + 5,
+                    LovenotePalette.alpha(0xBBB4D9, Math.min(28, glass / 2)));
 
-            // The existing native pictograms stay sharp and texture-free.
-            final int iconX = x + 24, iconY = y + 24;
+            final int iconX = x + 25, iconY = y + (rowH / 2);
             if (enabled > 0.01f || focus > 0.01f) {
                 circle(ctx, iconX, iconY, 12,
                         LovenotePalette.alpha(accent,
-                                Math.round(12 + 36 * Math.max(enabled, focus))));
+                                Math.round(10 + 36 * Math.max(enabled, focus))));
             }
             drawPremiumModuleIcon(ctx, iconX, iconY, m.title(),
                     active || focused ? 0xFFF4F7FF : 0xFF959EB9);
 
-            final int textX = x + 46;
-            final int textW = Math.max(22, tileW - 106);
+            final int textX = x + 47;
+            final int textW = Math.max(22, tileW - 109);
+            final int titleY = y + (rowH - 54) / 2 + 9;
             txtBoldScaled(ctx, trim(m.title(), Math.max(20, (int)(textW / 1.13f))),
-                    textX, y + 9, 1.13f,
+                    textX, titleY, 1.13f,
                     active ? 0xFFFFFFFF : hovered ? 0xFFF5F7FF : 0xFFE4E9F5);
             final String detail = unported ? "NOT PORTED TO 26.2" : m.description();
-            txt(ctx, trim(detail, textW), textX, y + 31,
+            if (LovenoteMenuConfig.descriptions) txt(ctx, trim(detail, textW),
+                    textX, titleY + 23,
                     unported ? 0xFFF0B599 : 0xFF9EA9C3);
 
-            final int sx = x + tileW - 38, sy = y + 19;
+            final int sx = x + tileW - 40, sy = y + (rowH - 15) / 2;
             if (unported) {
-                txt(ctx, "!", sx + 12, y + 19, 0xFFF7BCA6);
+                txt(ctx, "!", sx + 12, sy + 3, 0xFFF7BCA6);
             } else {
-                // Same hitbox and animation clock, with a lighter off state.
                 rr(ctx, sx, sy, 29, 15, 8,
-                        LovenotePalette.lerp(0x9B343A53,
+                        LovenotePalette.lerp(0x8C343A53,
                                 LovenotePalette.alpha(accent, 178), enabled));
                 circle(ctx, sx + 7 + Math.round(enabled * 14f), sy + 7, 5,
                         LovenotePalette.lerp(0xFFBFC8DC, 0xFFFFFFFF, enabled));
@@ -2360,7 +2397,8 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
 
             rr(ctx, wx + 4, wy + 4, winW - 8, winH - 8,
                 Math.max(4, corner - 4),
-                LovenotePalette.alpha(LovenotePalette.bg(), 220));
+                LovenotePalette.alpha(LovenotePalette.bg(), Math.round(220f *
+                    LovenoteMenuConfig.opacity / 100f)));
 
             fill(ctx, wx + corner + 8, wy + 4,
                 wx + winW - corner - 8, wy + 5,
@@ -2480,15 +2518,51 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
         for (String t : seg) { if (x > cx + 80) txt(ctx, t, x, y, LovenotePalette.alpha(LovenotePalette.faint(), 160)); x += font.width(t) + 10; }
     }
 
+    /** Rage is a view over working native + Meteor modules, not a second
+     * registry. The same module instance, settings, keybind and enabled state
+     * are used in Rage and its original category, so configurations cannot
+     * diverge and duplicated packet handlers are never registered. */
+    private static boolean rageCandidate(Row row) {
+        if (row instanceof MRow meteor) {
+            return meteor.m.category == meteordevelopment.meteorclient.systems.modules.Categories.Combat
+                    || RAGE_METEOR_EXTRAS.contains(meteor.m.name);
+        }
+        if (row instanceof LRow nativeRow) {
+            // Native COMBAT includes both implemented classes and legacy stubs.
+            // buildRows() already removes stubs unless the user shows them.
+            return nativeRow.m.category == com.lovenote.module.Category.COMBAT
+                    || nativeRow.m.category == com.lovenote.module.Category.RAGE
+                    || RAGE_MODULES.contains(nativeRow.m.name)
+                    || RAGE_NATIVE_EXTRAS.contains(nativeRow.m.name);
+        }
+        return false;
+    }
+
     private List<Row> visibleModules(String q) {
-        if (visibleCacheQuery != null && visibleCachePage == page && visibleCacheQuery.equals(q))
+        if (page != catIndex(com.lovenote.module.Category.SERVER_MODULES)
+                && visibleCacheQuery != null && visibleCachePage == page && visibleCacheQuery.equals(q))
             return visibleCache;
         List<Row> out = new ArrayList<>();
         for (Row m : allModules) {
             if (!q.isEmpty()) {
                 if (m.title().toLowerCase(java.util.Locale.ROOT).contains(q)
                         || m.description().toLowerCase(java.util.Locale.ROOT).contains(q)) out.add(m);
-            } else if (m.catIndex() == page) out.add(m);
+            } else if (m.catIndex() == page
+                    || (page == catIndex(com.lovenote.module.Category.RAGE) && rageCandidate(m))) {
+                int serverPage = catIndex(com.lovenote.module.Category.SERVER_MODULES);
+                if (page == serverPage && m instanceof LRow lr) {
+                    var selection = com.lovenote.Lovenote.modules == null ? null
+                        : com.lovenote.Lovenote.modules.get(com.lovenote.module.impl.ServerModules.class);
+                    var nativeCategory = lr.m.category;
+                    if (nativeCategory == com.lovenote.module.Category.DONUT
+                            || nativeCategory == com.lovenote.module.Category.HYPIXEL) {
+                        if (selection != null && selection.selectedCategory() == nativeCategory) out.add(m);
+                    } else if (nativeCategory == com.lovenote.module.Category.SERVER_MODULES) {
+                        if (lr.m instanceof com.lovenote.module.impl.ServerModules
+                                || (selection != null && selection.server.is("CubeCraft"))) out.add(m);
+                    }
+                } else out.add(m);
+            }
         }
         out.sort((x, y) -> x.title().compareToIgnoreCase(y.title()));
         visibleCache = out;
@@ -3057,6 +3131,27 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
         addHit(x, y, w, 28, K_CONFIG, null, null, action);
     }
 
+    /** Constant-cost preview using the same theme and adjustable opacity as module cards. */
+    private void appearancePalettePreview(GuiGraphicsExtractor g, int x, int y, int w, int h) {
+        final int alpha = Math.max(0, Math.min(190,
+                Math.round(190f * LovenoteMenuConfig.opacity / 100f)));
+        rr(g, x, y, w, h, 11, LovenotePalette.alpha(0x151529, alpha));
+        fill(g, x + 14, y + 8, x + w - 14, y + 9,
+                LovenotePalette.alpha(LovenotePalette.C2, 115));
+        txt(g, "GLASS  /  LIVE COLOURS", x + 13, y + 17, 0xFFBBB3D4);
+        rr(g, x + 12, y + 36, w - 24, 29, 7,
+                LovenotePalette.alpha(LovenotePalette.C2, Math.min(55, alpha)));
+        txtBold(g, "Module enabled", x + 21, y + 46, 0xFFF5EFFC);
+        rr(g, x + w - 46, y + 44, 26, 13, 7,
+                LovenotePalette.alpha(LovenotePalette.C2, 195));
+        circle(g, x + w - 27, y + 50, 5, 0xFFFFFFFF);
+        rr(g, x + 12, y + 71, w - 24, 27, 7,
+                LovenotePalette.alpha(0x333045, Math.min(90, alpha)));
+        txt(g, "Module disabled", x + 21, y + 80, 0xFFB7ABC9);
+        rr(g, x + w - 46, y + 78, 26, 13, 7, 0x663C3B55);
+        circle(g, x + w - 39, y + 84, 5, 0xFF9D9AAD);
+    }
+
     private void drawAppearanceWorkspace(GuiGraphicsExtractor g, int x, int top, int width, int bottom) {
         final int left = x + 8, right = x + width - 9;
         final int usable = Math.max(80, right - left);
@@ -3136,6 +3231,7 @@ private void macroGlass(GuiGraphicsExtractor g,int x,int y,int w,int h,int r,int
                 rr(g, sx, sy, size, size, 5, rgb);
                 addHit(sx - 2, sy - 2, size + 4, size + 4, K_ACCENT, null, null, j);
             }
+            if (usable >= 520) appearancePalettePreview(g, right - 248, y + 50, 242, 109);
             int sub = y + 163;
             appearanceSection(g, left + 2, sub, "CUSTOM HEX", "Six-digit RGB accents");
             int fieldGap = 12;

@@ -16,7 +16,7 @@ public abstract class LovenoteCloudRendererMixin {
 		if (Lovenote.modules == null) return;
 
 		SkyShader sky = Lovenote.modules.get(SkyShader.class);
-		if (sky == null || !sky.active()) return;
+		if (sky == null || !sky.active() || sky.vanillaClouds()) return;
 
 		ci.cancel();
 	}

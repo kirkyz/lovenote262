@@ -1,0 +1,10 @@
+src/main/java/com/lovenote/module/impl/ArmorHud.java|existing
+src/main/java/com/lovenote/module/impl/DrainerInfoBar.java|existing
+src/main/java/com/lovenote/module/impl/Keystrokes.java|existing
+src/main/java/com/lovenote/module/impl/LegacyTextWidget.java|existing
+src/main/java/com/lovenote/module/impl/Lyrics.java|existing
+src/main/java/com/lovenote/module/impl/SpotifyHud.java|existing
+src/main/java/com/lovenote/module/impl/StatsHud.java|existing
+src/main/java/com/lovenote/module/impl/TargetHud.java|existing
+src/main/java/com/lovenote/util/HudGlass.java|existing
+src/main/java/meteordevelopment/meteorclient/gui/screens/LovenoteModulesScreen.java|existing

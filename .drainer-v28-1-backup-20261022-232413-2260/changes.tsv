@@ -1,0 +1,8 @@
+src/main/java/com/lovenote/util/HudGlass.java|new
+src/main/java/com/lovenote/module/impl/LegacyTextWidget.java|existing
+src/main/java/com/lovenote/module/impl/Keystrokes.java|existing
+src/main/java/com/lovenote/module/impl/TargetHud.java|existing
+src/main/java/com/lovenote/module/impl/ArmorHud.java|existing
+src/main/java/com/lovenote/module/impl/StatsHud.java|new
+src/main/java/com/lovenote/module/impl/SpotifyHud.java|existing
+src/main/java/com/lovenote/module/ModuleManager.java|existing

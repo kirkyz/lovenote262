@@ -1,0 +1,14 @@
+src/main/java/meteordevelopment/meteorclient/gui/screens/LovenoteModulesScreen.java|existing
+src/main/java/com/lovenote/util/HudScale.java|existing
+src/main/java/com/lovenote/module/impl/ported/DrainerServerMacros.java|existing
+src/main/java/com/lovenote/module/impl/Compass.java|existing
+src/main/java/com/lovenote/module/impl/RegionMap.java|existing
+src/main/java/com/lovenote/module/impl/PotionList.java|existing
+src/main/java/com/lovenote/module/impl/StatsHud.java|existing
+src/main/java/com/lovenote/module/impl/CooldownsWidget.java|existing
+src/main/java/com/lovenote/module/impl/HitLog.java|existing
+src/main/java/com/lovenote/module/impl/KeybindsWidget.java|existing
+src/main/java/com/lovenote/module/impl/StaffList.java|existing
+src/main/java/com/lovenote/module/impl/TabList.java|existing
+src/main/java/com/lovenote/module/impl/SchematicAssist.java|existing
+src/main/java/com/lovenote/module/impl/SkyBlockCoach.java|existing

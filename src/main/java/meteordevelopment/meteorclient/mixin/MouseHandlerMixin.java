@@ -39,6 +39,8 @@ public abstract class MouseHandlerMixin {
     @Inject(method = "onButton", at = @At("HEAD"), cancellable = true)
     private void onMouseButton(long handle, MouseButtonInfo rawButtonInfo, int action, CallbackInfo ci) {
         Input.setButtonState(rawButtonInfo.button(), action != RELEASE);
+        if (action == com.mojang.blaze3d.platform.InputConstants.PRESS)
+            com.lovenote.module.impl.ported.DrainerServerMacros.MacroRecorder.captureMousePress(rawButtonInfo.button());
 
         MouseButtonEvent click = new MouseButtonEvent(getScaledXPos(minecraft.getWindow()), getScaledYPos(minecraft.getWindow()), rawButtonInfo);
         if (MeteorClient.EVENT_BUS.post(MouseClickEvent.get(click, KeyAction.get(action))).isCancelled()) ci.cancel();

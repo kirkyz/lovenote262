@@ -1,450 +1,295 @@
 package com.lovenote.module.impl;
 
+import com.google.gson.JsonObject;
 import com.lovenote.module.Category;
 import com.lovenote.module.Module;
 import com.lovenote.setting.BoolSetting;
 import com.lovenote.setting.ModeSetting;
 import com.lovenote.setting.NumberSetting;
-import com.lovenote.util.Colors;
-import com.lovenote.util.Fx;
-import com.lovenote.util.Gl;
-import com.lovenote.util.Tex;
 import com.lovenote.util.WorldRenderContext;
 import com.mojang.blaze3d.vertex.PoseStack;
-import meteordevelopment.meteorclient.renderer.MeshBuilder;
-import net.minecraft.client.Camera;
 import net.minecraft.resources.Identifier;
-import net.minecraft.util.Mth;
-import net.minecraft.world.level.dimension.DimensionType;
-import org.joml.Matrix4f;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.lang.reflect.Method;
 
-public class SkyShader extends Module {
+/**
+ * Drainer V58: animated layered sky system, registered with Nuit at runtime.
+ * No external resource packs. Compatible with the separately installed Nuit Fabric mod.
+ * Does not touch the old GPU planet renderer.
+ */
+public final class SkyShader extends Module {
+    private static final Identifier SKY_ID = Identifier.fromNamespaceAndPath("lovenote262", "drainer_selected_sky");
+    private final ModeSetting sky = add(new ModeSetting("Sky", "Galaxy Sky",
+        "Galaxy Sky", "Pink Nebula", "Galaxy Prime", "Galaxxy Sky", "Sky V1", "Better Sky", "GPU Plasma", "GPU Ocean", "GPU Water", "GPU Nebula", "GPU Aurora", "GPU Anchor Test", "GPU Ringed Planet", "GPU Living Nebula", "GPU Galactic Spiral", "GPU Event Horizon", "GPU Cosmic Storm", "GPU Void Rift", "GPU Aurora Expanse", "GPU Cosmic Silk", "GPU Eclipse", "GPU Meteor Shower", "GPU Starfield+", "GPU Planetary System", "GPU Supernova", "GPU Plasma Vortex"));
+    private final NumberSetting gpuSpeed = add(new NumberSetting("GPU animation speed", 1.0, 0.0, 4.0, 0.1));
+    private final NumberSetting gpuScale = add(new NumberSetting("GPU pattern scale", 2.4, 0.4, 8.0, 0.1));
+    private final NumberSetting gpuBrightness = add(new NumberSetting("GPU brightness", 0.85, 0.05, 1.5, 0.05));
+    private final NumberSetting gpuDetail = add(new NumberSetting("GPU detail", 2, 1, 3, 1));
+    private final NumberSetting gpuDensity = add(new NumberSetting("GPU density", 0.75, 0.1, 1.5, 0.05));
+    private final NumberSetting gpuHueA = add(new NumberSetting("GPU primary hue", 270, 0, 360, 1));
+    private final NumberSetting gpuHueB = add(new NumberSetting("GPU secondary hue", 192, 0, 360, 1));
+    private final NumberSetting gpuSaturation = add(new NumberSetting("GPU saturation", 85, 0, 100, 1));
+    private final BoolSetting showClouds = add(new BoolSetting("Show vanilla clouds", false));
+    private final NumberSetting gpuSpaceMotion = add(new NumberSetting("Space motion intensity", 1.0, 0.0, 2.0, 0.1));
+    private final NumberSetting gpuMeteorRate = add(new NumberSetting("Shooting star activity", 0.7, 0.0, 2.0, 0.1));
+    private final BoolSetting animate = add(new BoolSetting("Rotate sky slowly", true));
+    private final NumberSetting speed = add(new NumberSetting("Sky rotation", 0.12, 0, 2.0, 0.02));
+    private static final Identifier STARS_ID = Identifier.fromNamespaceAndPath("lovenote262", "drainer_v58_stars");
+    private static final Identifier GLOW_ID = Identifier.fromNamespaceAndPath("lovenote262", "drainer_v58_atmosphere");
+    private final BoolSetting livingStars = add(new BoolSetting("Animated star layer", true));
+    private final NumberSetting starsSpeed = add(new NumberSetting("Star movement", 0.65, 0.0, 5.0, 0.05));
+    private final BoolSetting movingHaze = add(new BoolSetting("Moving atmosphere", true));
+    private final NumberSetting hazeSpeed = add(new NumberSetting("Atmosphere movement", 0.3, 0.0, 3.0, 0.05));
+    private final BoolSetting hideSun = add(new BoolSetting("Hide vanilla sun", true));
+    private final BoolSetting hideMoon = add(new BoolSetting("Hide vanilla moon", true));
+    private String applied = "";
+    private boolean anchorReady;
+    private Object anchorWorld;
+    private double anchorX, anchorY, anchorZ;
+    private boolean missingLogged;
 
-	private final ModeSetting preset = add(new ModeSetting("Preset", "Lovenote",
-			"Off", "Lovenote", "Sunset", "Dawn", "Night", "Aurora", "Cyber", "Void",
-			"Nebula", "Vaporwave", "Matrix", "BloodMoon", "Ice", "Candy", "Mono", "Custom",
-			"Galaxy", "Aurora Borealis", "Meteor Shower", "Eclipse", "Twilight", "Toxic",
-			"Rose Gold", "Deep Sea", "Ember", "Glacier", "Solar Storm", "Midnight Bloom",
-			"Cotton Candy", "Obsidian", "Rainbow", "Comet", "Pastel Dream", "Storm",
-			"Astral", "Golden Hour", "Lavender", "Cherry"));
-	private final BoolSetting overworldOnly = add(new BoolSetting("Overworld only", true));
-	private final NumberSetting starBrightness = add(new NumberSetting("Stars", 0.7, 0.0, 1.0, 0.05));
-	private final NumberSetting twinkle = add(new NumberSetting("Twinkle", 0.4, 0.0, 1.0, 0.05));
-	private final NumberSetting spin = add(new NumberSetting("Sky spin", 1.0, 0.0, 6.0, 0.1));
-	private final NumberSetting auroraStrength = add(new NumberSetting("Aurora", 0.0, 0.0, 1.0, 0.05));
-	private final NumberSetting auroraSpeed = add(new NumberSetting("Aurora speed", 0.5, 0.0, 3.0, 0.05));
-	private final BoolSetting celestial = add(new BoolSetting("Sun & moon", true));
-	private final NumberSetting sunSize = add(new NumberSetting("Sun size", 1.0, 0.3, 3.0, 0.1));
-	private final BoolSetting sunFlare = add(new BoolSetting("Sun flare", true));
-	private final NumberSetting milkyWay = add(new NumberSetting("Milky way", 0.0, 0.0, 1.0, 0.05));
-	private final NumberSetting constellations = add(new NumberSetting("Constellations", 0.0, 0.0, 1.0, 0.05));
-	private final NumberSetting planets = add(new NumberSetting("Planets", 0, 0, 4, 1));
-	private final NumberSetting meteors = add(new NumberSetting("Shooting stars", 0.3, 0.0, 1.0, 0.05));
-	private final NumberSetting haze = add(new NumberSetting("Horizon haze", 0.35, 0.0, 1.0, 0.05));
-	private final NumberSetting posterize = add(new NumberSetting("Banding", 0, 0, 24, 1));
-	private final BoolSetting cloudTintOn = add(new BoolSetting("Tint clouds", true));
-	private final BoolSetting fogTintOn = add(new BoolSetting("Tint fog", true));
-	private final NumberSetting domeDetail = add(new NumberSetting("Dome detail", 48, 16, 96, 8));
+    private static boolean fixedObjectSky(String name) {
+        return name.equals("GPU Anchor Test") || name.equals("GPU Ringed Planet")
+            || name.equals("GPU Living Nebula") || name.equals("GPU Galactic Spiral")
+            || name.equals("GPU Event Horizon") || name.equals("GPU Cosmic Storm")
+            || name.equals("GPU Void Rift") || name.equals("GPU Aurora Expanse")
+            || name.equals("GPU Cosmic Silk") || name.equals("GPU Eclipse")
+            || name.equals("GPU Meteor Shower") || name.equals("GPU Starfield+")
+            || name.equals("GPU Planetary System") || name.equals("GPU Supernova")
+            || name.equals("GPU Plasma Vortex");
+    }
 
-	private static final float R = 260f;
-	private static final Identifier SUN = Identifier.withDefaultNamespace("textures/environment/sun.png");
-	private static final Identifier MOON = Identifier.withDefaultNamespace("textures/environment/moon_phases.png");
+    private static int spaceMode(String name) {
+        return switch (name) {
+            case "GPU Living Nebula" -> 0;
+            case "GPU Galactic Spiral" -> 1;
+            case "GPU Event Horizon" -> 2;
+            case "GPU Cosmic Storm" -> 3;
+            case "GPU Void Rift" -> 4;
+            case "GPU Aurora Expanse" -> 5;
+            case "GPU Cosmic Silk" -> 6;
+            case "GPU Eclipse" -> 7;
+            case "GPU Meteor Shower" -> 8;
+            case "GPU Starfield+" -> 9;
+            case "GPU Planetary System" -> 10;
+            case "GPU Supernova" -> 11;
+            case "GPU Plasma Vortex" -> 12;
+            default -> -1;
+        };
+    }
 
-	private float[] stars;
-	private int starCount = -1;
-	private long lastFrame = System.currentTimeMillis();
+    public SkyShader() {
+        super("SkyShader", Category.RENDER);
+        describe("Client-integrated GPU skies and optional Nuit skyboxes. Each sky can be selected without resource packs.");
+    }
 
-	private static final class Meteor { long t0; float ax, ay, az, dx, dy, dz; float len; }
-	private final List<Meteor> meteorsList = new ArrayList<>();
-	private final Random rng = new Random();
-
-	public SkyShader() {
-		super("SkyShader", Category.RENDER);
-		describe("Custom sky, sun, stars, aurora and nebula.");
-	        // Default activation is handled by ModuleManager after construction.
-}
-
-	private int top() {
-		return switch (preset.get()) {
-			case "Lovenote" -> Colors.C3;
-			case "Sunset" -> 0xFF2B1B4D;
-			case "Dawn" -> 0xFF2A4A8A;
-			case "Night" -> 0xFF05060F;
-			case "Aurora" -> 0xFF071026;
-			case "Aurora Borealis" -> 0xFF02121C;
-			case "Cyber" -> 0xFF12002B;
-			case "Void" -> 0xFF000000;
-			case "Nebula" -> 0xFF1B0B3B;
-			case "Vaporwave" -> 0xFF2A0A4A;
-			case "Matrix" -> 0xFF001A0A;
-			case "BloodMoon" -> 0xFF2A0505;
-			case "Ice" -> 0xFF0B2A3A;
-			case "Candy" -> 0xFF3A0B2E;
-			case "Mono" -> 0xFF101014;
-			case "Galaxy" -> 0xFF0B0420;
-			case "Meteor Shower" -> 0xFF060612;
-			case "Eclipse" -> 0xFF000000;
-			case "Twilight" -> 0xFF2B1055;
-			case "Toxic" -> 0xFF04200E;
-			case "Rose Gold" -> 0xFF3B1F2B;
-			case "Deep Sea" -> 0xFF001427;
-			case "Ember" -> 0xFF1A0500;
-			case "Glacier" -> 0xFF0A1A2F;
-			case "Solar Storm" -> 0xFF1A0033;
-			case "Midnight Bloom" -> 0xFF0A0118;
-			case "Cotton Candy" -> 0xFF3D2C4E;
-			case "Obsidian" -> 0xFF08080C;
-			case "Rainbow" -> 0xFF14002B;
-			case "Comet" -> 0xFF03030A;
-			case "Pastel Dream" -> 0xFF2E2A4A;
-			case "Storm" -> 0xFF10131C;
-			case "Astral" -> 0xFF0D0526;
-			case "Golden Hour" -> 0xFF2A1B0A;
-			case "Lavender" -> 0xFF241B4A;
-			case "Cherry" -> 0xFF2B0A14;
-			case "Custom" -> 0xFF000000 | (Colors.C3 & 0xFFFFFF);
-			default -> 0xFF4A90D9;
-		};
-	}
-
-	private int horizon() {
-		return switch (preset.get()) {
-			case "Lovenote" -> Colors.C1;
-			case "Sunset" -> 0xFFFF7A45;
-			case "Dawn" -> 0xFFFFC48A;
-			case "Night" -> 0xFF141A33;
-			case "Aurora" -> 0xFF0E2A2A;
-			case "Aurora Borealis" -> 0xFF3BF0A0;
-			case "Cyber" -> 0xFFFF2E88;
-			case "Void" -> 0xFF0A0A12;
-			case "Nebula" -> 0xFF6D28D9;
-			case "Vaporwave" -> 0xFFFF2E88;
-			case "Matrix" -> 0xFF00FF41;
-			case "BloodMoon" -> 0xFFDC143C;
-			case "Ice" -> 0xFF67E8F9;
-			case "Candy" -> 0xFFFF9ACB;
-			case "Mono" -> 0xFFDDDDDD;
-			case "Galaxy" -> 0xFF7C3AED;
-			case "Meteor Shower" -> 0xFFFF6B35;
-			case "Eclipse" -> 0xFFFFB347;
-			case "Twilight" -> 0xFFFF9ACB;
-			case "Toxic" -> 0xFF7CFC00;
-			case "Rose Gold" -> 0xFFFFB6A8;
-			case "Deep Sea" -> 0xFF1ABC9C;
-			case "Ember" -> 0xFFFF4500;
-			case "Glacier" -> 0xFFA5F3FC;
-			case "Solar Storm" -> 0xFFFF8C00;
-			case "Midnight Bloom" -> 0xFFB28DFF;
-			case "Cotton Candy" -> 0xFFFFC0E0;
-			case "Obsidian" -> 0xFF4B5563;
-			case "Rainbow" -> 0xFFFF2E88;
-			case "Comet" -> 0xFF67E8F9;
-			case "Pastel Dream" -> 0xFFFFD1DC;
-			case "Storm" -> 0xFF8899AA;
-			case "Astral" -> 0xFF8B5CF6;
-			case "Golden Hour" -> 0xFFFFD166;
-			case "Lavender" -> 0xFFC4B5FD;
-			case "Cherry" -> 0xFFFF9ACB;
-			case "Custom" -> 0xFF000000 | (Colors.C1 & 0xFFFFFF);
-			default -> 0xFFB7D9F2;
-		};
-	}
-
-	private boolean starsOn() {
-		return starBrightness.getF() > 0.01f && switch (preset.get()) {
-			case "Lovenote", "Night", "Void", "Aurora", "Nebula", "Vaporwave", "Matrix", "BloodMoon", "Ice",
-					"Candy", "Mono", "Custom", "Galaxy", "Meteor Shower", "Eclipse", "Twilight",
-					"Deep Sea", "Solar Storm", "Midnight Bloom", "Obsidian", "Comet", "Astral",
-					"Lavender", "Cherry", "Aurora Borealis" -> true;
-			default -> false;
-		};
-	}
-
-	private boolean auroraOn() {
-		return auroraStrength.getF() > 0.01f && switch (preset.get()) {
-			case "Aurora", "Cyber", "Nebula", "Vaporwave", "Matrix", "Custom",
-					"Aurora Borealis", "Galaxy", "Astral", "Solar Storm", "Toxic" -> true;
-			default -> false;
-		};
-	}
-
-	        public boolean active() {
-                return enabled && !preset.is("Off");
+    @Override public void onEnable() { applied = ""; anchorReady = false; }
+    @Override public void onDisable() { unregister(); applied = ""; anchorReady = false; anchorWorld = null; }
+    @Override public void onTick() {
+        if (!enabled || mc.level == null) return;
+        // Entering/leaving the test resets the one-time landmark placement.
+        if (!fixedObjectSky(sky.get()) || anchorWorld != mc.level) anchorReady = false;
+        if (sky.get().startsWith("GPU ")) {
+            if (!"gpu".equals(applied)) unregister();
+            applied = "gpu";
+            return;
         }
-
-@Override
-	public void onRender3D(WorldRenderContext ctx, PoseStack m) {
-                if (preset.is("Off")) return;
-                if (overworldOnly.get() && mc.level != null
-                                && mc.level.dimensionType().skybox() != DimensionType.Skybox.OVERWORLD) return;
-
-                long now = System.currentTimeMillis();
-                float dt = Mth.clamp((now - lastFrame) / 1000f, 0f, 0.2f);
-                lastFrame = now;
-
-                Camera camera = ctx.camera();
-                Matrix4f mat = m.last().pose();
-                double camX = camera.position().x, camY = camera.position().y, camZ = camera.position().z;
-
-                Fx.cameraBasis(camera);
-                Tex.ensure();
-
-                dome(mat, camX, camY, camZ);
-                if (starsOn()) stars(mat, camX, camY, camZ, ctx.tickDelta());
-                if (milkyWay.getF() > 0.01f) milkyWayBand(mat, camX, camY, camZ);
-                if (constellations.getF() > 0.01f) constellationLines(mat, camX, camY, camZ);
-                if (planets.getI() > 0) planetBodies(mat, camX, camY, camZ);
-                if (auroraOn()) aurora(mat, camX, camY, camZ, ctx.tickDelta());
-                if (celestial.get()) sunMoon(mat, camX, camY, camZ, ctx.tickDelta());
-                if (meteors.getF() > 0.01f) shootingStars(mat, camX, camY, camZ, dt);
-                if (haze.getF() > 0.01f) horizonHaze(mat, camX, camY, camZ);
+        String key = sky.get() + ":" + animate.get() + ":" + speed.getF() + ":" + livingStars.get() + ":" + starsSpeed.getF() + ":" + movingHaze.get() + ":" + hazeSpeed.getF();
+        if (key.equals(applied)) return;
+        try {
+            Object api = api();
+            if (api == null) {
+                if (!missingLogged) {
+                    System.err.println("[Drainer] Built-in skies require Nuit in this game instance.");
+                    missingLogged = true;
+                }
+                return;
+            }
+            unregister(api);
+            JsonObject json = new JsonObject();
+            json.addProperty("schemaVersion", 1);
+            json.addProperty("type", "square-textured");
+            json.addProperty("texture", "lovenote262:textures/sky/" + filename(sky.get()) + ".png");
+            JsonObject properties = new JsonObject();
+            properties.addProperty("layer", 90);
+            properties.addProperty("transitionInDuration", 30);
+            properties.addProperty("transitionOutDuration", 30);
+            JsonObject rotation = new JsonObject();
+            rotation.addProperty("skyboxRotation", true);
+            rotation.addProperty("duration", 24000);
+            rotation.addProperty("speed", animate.get() ? speed.getF() : 0.0f);
+            JsonObject axis = new JsonObject();
+            com.google.gson.JsonArray direction = new com.google.gson.JsonArray();
+            direction.add(0); direction.add(1); direction.add(0);
+            axis.add("0", direction);
+            rotation.add("axis", axis);
+            properties.add("rotation", rotation);
+            json.add("properties", properties);
+            Object skybox = parse(api, json);
+            if (skybox instanceof java.util.Optional<?> optional) skybox = optional.orElse(null);
+            if (skybox == null) throw new IllegalStateException("Nuit could not parse built-in sky: " + sky.get());
+            for (Method method : api.getClass().getMethods()) {
+                if (method.getName().equals("addPermanentSkybox") && method.getParameterCount() == 2) {
+                    method.invoke(api, SKY_ID, skybox);
+                    if (livingStars.get()) registerLayer(api, STARS_ID, "lovenote262:textures/sky/v58_stars.png", 110, starsSpeed.getF(), 0, 0);
+                    if (movingHaze.get()) registerLayer(api, GLOW_ID, "lovenote262:textures/sky/v58_haze.png", 105, -hazeSpeed.getF(), 6000, 1);
+                    applied = key;
+                    System.out.println("[Drainer] Loaded animated sky layers for: " + sky.get());
+                    return;
+                }
+            }
+            throw new NoSuchMethodException("Nuit.addPermanentSkybox");
+        } catch (Exception e) {
+            System.err.println("[Drainer] Failed to load built-in sky: " + e);
+            // Retry on next setting change or after restarting, not every tick.
+            applied = key;
         }
+    }
 
-	private int shade(float y, int zenith, int horizon, int nadir) {
-		float t = Mth.clamp(y / R, -1f, 1f);
-		int c = t >= 0f ? Colors.lerp(horizon, zenith, t) : Colors.lerp(horizon, nadir, -t);
-		int steps = posterize.getI();
-		if (steps > 1) {
-			int q = 255 / steps;
-			int r = Math.min(255, ((c >> 16) & 255) / Math.max(1, q) * q);
-			int g = Math.min(255, ((c >> 8) & 255) / Math.max(1, q) * q);
-			int b = Math.min(255, (c & 255) / Math.max(1, q) * q);
-			c = (c & 0xFF000000) | (r << 16) | (g << 8) | b;
-		}
-		return c;
-	}
+    /** Two independently animated, alpha-blended skybox atlases. No per-tick mesh rebuilding. */
+    private void registerLayer(Object api, Identifier id, String texture, int layer, double velocity, int phase, int axisMode) throws Exception {
+        JsonObject json = new JsonObject();
+        json.addProperty("schemaVersion", 1);
+        json.addProperty("type", "square-textured");
+        json.addProperty("texture", texture);
+        JsonObject props = new JsonObject();
+        props.addProperty("layer", layer);
+        props.addProperty("blend", "normal");
+        props.addProperty("transitionInDuration", 50);
+        props.addProperty("transitionOutDuration", 50);
+        JsonObject rotation = new JsonObject();
+        rotation.addProperty("skyboxRotation", true);
+        rotation.addProperty("duration", 24000);
+        rotation.addProperty("speed", velocity);
+        JsonObject axis = new JsonObject();
+        com.google.gson.JsonArray direction = new com.google.gson.JsonArray();
+        direction.add(axisMode == 0 ? 0 : 17); direction.add(1); direction.add(axisMode == 0 ? 0 : 8);
+        axis.add("0", direction);
+        rotation.add("axis", axis);
+        props.add("rotation", rotation);
+        JsonObject fade = new JsonObject();
+        fade.addProperty("duration", 2400);
+        JsonObject frames = new JsonObject();
+        if (axisMode == 0) {
+            frames.addProperty("0", 0.34); frames.addProperty("600", 0.9);
+            frames.addProperty("1200", 0.45); frames.addProperty("1800", 0.95);
+        } else {
+            frames.addProperty("0", 0.14); frames.addProperty("600", 0.34);
+            frames.addProperty("1200", 0.22); frames.addProperty("1800", 0.4);
+        }
+        fade.add("keyFrames", frames);
+        props.add("fade", fade);
+        json.add("properties", props);
+        Object obj = parseWithId(api, id, json);
+        if (obj instanceof java.util.Optional<?> opt) obj = opt.orElse(null);
+        if (obj == null) throw new IllegalStateException("Nuit did not parse: " + texture);
+        for (Method method : api.getClass().getMethods()) {
+            if (method.getName().equals("addPermanentSkybox") && method.getParameterCount() == 2) {
+                method.invoke(api, id, obj); return;
+            }
+        }
+        throw new NoSuchMethodException("Nuit.addPermanentSkybox");
+    }
 
-	private void dome(Matrix4f mat, double cx, double cy, double cz) {
-		int zenith = top(), horizon = horizon();
-		int nadir = Colors.lerp(horizon, 0xFF000000, 0.45f);
-
-		int seg = domeDetail.getI();
-		int rings = Math.max(6, seg / 3);
-
-		MeshBuilder b = Fx.colorQuadsDepth();
-		for (int r = 0; r < rings; r++) {
-			float phi0 = (float) (r * Math.PI / rings);
-			float phi1 = (float) ((r + 1) * Math.PI / rings);
-			float y0 = (float) Math.cos(phi0) * R;
-			float y1 = (float) Math.cos(phi1) * R;
-			float rad0 = (float) Math.sin(phi0) * R;
-			float rad1 = (float) Math.sin(phi1) * R;
-			int c0 = shade(y0, zenith, horizon, nadir);
-			int c1 = shade(y1, zenith, horizon, nadir);
-
-			for (int s = 0; s < seg; s++) {
-				float a0 = (float) (s * Math.PI * 2.0 / seg);
-				float a1 = (float) ((s + 1) * Math.PI * 2.0 / seg);
-				float x00 = Mth.cos(a0) * rad0, z00 = Mth.sin(a0) * rad0;
-				float x01 = Mth.cos(a1) * rad0, z01 = Mth.sin(a1) * rad0;
-				float x10 = Mth.cos(a0) * rad1, z10 = Mth.sin(a0) * rad1;
-				float x11 = Mth.cos(a1) * rad1, z11 = Mth.sin(a1) * rad1;
-
-				Fx.vc(b, mat, (float) cx + x00, (float) cy + y0, (float) cz + z00, c0);
-				Fx.vc(b, mat, (float) cx + x01, (float) cy + y0, (float) cz + z01, c0);
-				Fx.vc(b, mat, (float) cx + x11, (float) cy + y1, (float) cz + z11, c1);
-				Fx.vc(b, mat, (float) cx + x10, (float) cy + y1, (float) cz + z10, c1);
-			}
-		}
-		Fx.draw();
-	}
-
-	private float[] starField() {
-		int n = 620;
-		if (starCount != n) {
-			starCount = n;
-			stars = new float[n * 3];
-			Random r = new Random(0x5EED);
-			for (int i = 0; i < n; i++) {
-				float y = r.nextFloat();
-				float a = r.nextFloat() * 6.28318f;
-				float rad = (float) Math.sqrt(Math.max(0f, 1f - y * y));
-				stars[i * 3] = Mth.cos(a) * rad * R;
-				stars[i * 3 + 1] = y * R;
-				stars[i * 3 + 2] = Mth.sin(a) * rad * R;
-			}
-		}
-		return stars;
-	}
-
-	private void stars(Matrix4f mat, double cx, double cy, double cz, float td) {
-		float[] st = starField();
-		float angle = (mc.level == null ? 0f : Gl.skyAngle(mc.level, td)) * 6.28318f * spin.getF();
-		float cs = Mth.cos(angle), sn = Mth.sin(angle);
-		float bright = starBrightness.getF();
-		float tw = twinkle.getF();
-
-		Fx.texture(Tex.STAR);
-		MeshBuilder b = Fx.texQuadsDepth();
-
-		long t = System.currentTimeMillis();
-		for (int i = 0; i < starCount; i++) {
-			float x = st[i * 3], y = st[i * 3 + 1], z = st[i * 3 + 2];
-			float rx = x * cs - z * sn;
-			float rz = x * sn + z * cs;
-			float f = 1f;
-			if (tw > 0f) f = 1f - tw * 0.5f * (0.5f + 0.5f * Mth.sin(t / 900f + i));
-			int a = (int) (255 * bright * f);
-			if (a < 4) continue;
-			Fx.billboard(b, mat, (float) cx + rx, (float) cy + y, (float) cz + rz, 2.8f, Colors.alpha(0xFFFFFFFF, a));
-		}
-		Fx.draw();
-	}
-
-	private void milkyWayBand(Matrix4f mat, double cx, double cy, double cz) {
-		float[] st = starField();
-		int op = (int) (110 * milkyWay.getF());
-		Fx.texture(Tex.SOFT);
-		MeshBuilder b = Fx.texQuadsDepth();
-		float tilt = 0.6f;
-		for (int i = 0; i < 240; i++) {
-			float x = st[i * 3], y = st[i * 3 + 1], z = st[i * 3 + 2];
-			float rx = x * Mth.cos(tilt) - y * Mth.sin(tilt);
-			float ry = x * Mth.sin(tilt) + y * Mth.cos(tilt);
-			int a = (int) (op * (0.4f + 0.6f * Math.abs(Mth.sin(i * 0.7f))));
-			Fx.billboard(b, mat, (float) cx + rx, (float) cy + ry, (float) cz + z, 26f, Colors.alpha(0xFFE8E0FF, a));
-		}
-		Fx.draw();
-	}
-
-	private void constellationLines(Matrix4f mat, double cx, double cy, double cz) {
-		float[] st = starField();
-		MeshBuilder b = Fx.colorQuadsDepth();
-		int op = (int) (170 * constellations.getF());
-		Random r = new Random(0xC0FFEE);
-		for (int i = 0; i < 60; i++) {
-			int a0 = r.nextInt(starCount);
-			int a1 = r.nextInt(starCount);
-			float x0 = st[a0 * 3], y0 = st[a0 * 3 + 1], z0 = st[a0 * 3 + 2];
-			float x1 = st[a1 * 3], y1 = st[a1 * 3 + 1], z1 = st[a1 * 3 + 2];
-			float dx = x1 - x0, dy = y1 - y0, dz = z1 - z0;
-			float len = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
-			if (len > 90f) continue;
-			float th = 0.9f;
-			int c = Colors.alpha(0xFFFFFFFF, op);
-			Fx.vc(b, mat, (float) cx + x0 - th, (float) cy + y0, (float) cz + z0, c);
-			Fx.vc(b, mat, (float) cx + x0 + th, (float) cy + y0, (float) cz + z0, c);
-			Fx.vc(b, mat, (float) cx + x1 + th, (float) cy + y1, (float) cz + z1, c);
-			Fx.vc(b, mat, (float) cx + x1 - th, (float) cy + y1, (float) cz + z1, c);
-		}
-		Fx.draw();
-	}
-
-	private void planetBodies(Matrix4f mat, double cx, double cy, double cz) {
-		Fx.texture(Tex.GLOW);
-		MeshBuilder b = Fx.texQuadsDepth();
-		int n = planets.getI();
-		for (int i = 0; i < n; i++) {
-			float ang = (float) (i * 1.9);
-			float px = Mth.cos(ang) * R * 0.72f;
-			float pz = Mth.sin(ang) * R * 0.72f;
-			float py = R * (0.18f + i * 0.12f);
-			int c = Colors.alpha(Colors.lerp(horizon(), 0xFFFFFFFF, 0.4f), 210);
-			Fx.billboard(b, mat, (float) cx + px, (float) cy + py, (float) cz + pz, 12f + i * 3f, c);
-		}
-		Fx.draw();
-	}
-
-	private void aurora(Matrix4f mat, double cx, double cy, double cz, float td) {
-		float str = auroraStrength.getF();
-		float time = (System.currentTimeMillis() % 100000L) / 1000f * auroraSpeed.getF();
-
-		Fx.texture(Tex.SOFT);
-		MeshBuilder b = Fx.texQuadsDepth();
-		for (int band = 0; band < 3; band++) {
-			float phase = time + band * 2.1f;
-			int col = Colors.rainbow(band * 0.22f + time * 0.02f);
-			int a = (int) (150 * str);
-			if (a < 4) continue;
-
-			float zOff = Mth.sin(phase) * R * 0.55f;
-			float xOff = Mth.cos(phase * 0.7f) * R * 0.55f;
-			float y0 = 40f + band * 18f, y1 = y0 + 120f;
-			float w = R * 1.15f;
-
-			Fx.vt(b, mat, (float) cx - w + xOff, (float) cy + y0, (float) cz + zOff, 0f, 1f, Colors.alpha(col, 0));
-			Fx.vt(b, mat, (float) cx + w + xOff, (float) cy + y0, (float) cz + zOff, 1f, 1f, Colors.alpha(col, 0));
-			Fx.vt(b, mat, (float) cx + w + xOff, (float) cy + y1, (float) cz + zOff, 1f, 0f, Colors.alpha(col, a));
-			Fx.vt(b, mat, (float) cx - w + xOff, (float) cy + y1, (float) cz + zOff, 0f, 0f, Colors.alpha(col, a));
-		}
-		Fx.draw();
-	}
-
-	private void sunMoon(Matrix4f mat, double cx, double cy, double cz, float td) {
-		float ang = (mc.level == null ? 0f : Gl.skyAngle(mc.level, td)) * 6.28318f;
-		float sx = Mth.cos(ang) * R, sy = Mth.sin(ang) * R;
-		boolean day = sy > -20f;
-		float size = 34f * sunSize.getF();
-
-		if (sunFlare.get() && day) {
-			Fx.texture(Tex.GLOW);
-			MeshBuilder g = Fx.texQuadsDepth();
-			Fx.billboard(g, mat, (float) cx + sx, (float) cy + sy, (float) cz, size * 4.5f, Colors.alpha(horizon(), 90));
-			Fx.draw();
-		}
-
-		Fx.texture(day ? SUN : MOON);
-		MeshBuilder b = Fx.texQuadsDepth();
-		int c = day ? 0xFFFFFFFF : 0xFFD8E4FF;
-		Fx.billboard(b, mat, (float) cx + sx, (float) cy + sy, (float) cz, size, c);
-		Fx.draw();
-	}
-
-	private void shootingStars(Matrix4f mat, double cx, double cy, double cz, float dt) {
-		float intensity = meteors.getF();
-		if (meteorsList.size() < (int) (intensity * 12)) {
-			if (rng.nextFloat() < intensity * 0.35f) {
-				Meteor mm = new Meteor();
-				mm.t0 = System.currentTimeMillis();
-				float a = rng.nextFloat() * 6.28318f;
-				float e = 0.2f + rng.nextFloat() * 0.7f;
-				mm.ax = Mth.cos(a) * R * 0.9f;
-				mm.az = Mth.sin(a) * R * 0.9f;
-				mm.ay = e * R * 0.9f;
-				float dir = rng.nextFloat() * 6.28318f;
-				mm.dx = Mth.cos(dir) * 0.5f;
-				mm.dz = Mth.sin(dir) * 0.5f;
-				mm.dy = -0.35f - rng.nextFloat() * 0.3f;
-				mm.len = 60f + rng.nextFloat() * 90f;
-				meteorsList.add(mm);
-			}
-		}
-
-		long now = System.currentTimeMillis();
-		Fx.texture(Tex.SOFT);
-		MeshBuilder b = Fx.texQuadsDepth();
-		for (int i = meteorsList.size() - 1; i >= 0; i--) {
-			Meteor mm = meteorsList.get(i);
-			float age = (now - mm.t0) / 1000f;
-			if (age > 2.2f) { meteorsList.remove(i); continue; }
-			float f = 1f - age / 2.2f;
-			float px = mm.ax + mm.dx * mm.len * age;
-			float py = mm.ay + mm.dy * mm.len * age;
-			float pz = mm.az + mm.dz * mm.len * age;
-			int a = (int) (230 * f * intensity);
-			if (a < 6) continue;
-			Fx.billboard(b, mat, (float) cx + px, (float) cy + py, (float) cz + pz, 5f, Colors.alpha(0xFFFFFFFF, a));
-			Fx.billboard(b, mat, (float) cx + px - mm.dx * 14f, (float) cy + py - mm.dy * 14f,
-					(float) cz + pz - mm.dz * 14f, 3f, Colors.alpha(0xFFFFFFFF, a / 2));
-		}
-		Fx.draw();
-	}
-
-	private void horizonHaze(Matrix4f mat, double cx, double cy, double cz) {
-		int a = (int) (120 * haze.getF());
-		if (a < 4) return;
-		int col = horizon();
-		Fx.texture(Tex.SOFT);
-		MeshBuilder b = Fx.texQuadsDepth();
-		float w = R * 1.6f;
-		Fx.vt(b, mat, (float) cx - w, (float) cy - 6f, (float) cz - w, 0f, 0f, Colors.alpha(col, 0));
-		Fx.vt(b, mat, (float) cx + w, (float) cy - 6f, (float) cz - w, 1f, 0f, Colors.alpha(col, 0));
-		Fx.vt(b, mat, (float) cx + w, (float) cy + 70f, (float) cz + w, 1f, 1f, Colors.alpha(col, a));
-		Fx.vt(b, mat, (float) cx - w, (float) cy + 70f, (float) cz + w, 0f, 1f, Colors.alpha(col, a));
-		Fx.draw();
-	}
+    private Object parseWithId(Object api, Identifier id, JsonObject json) throws Exception {
+        for (Method method : api.getClass().getMethods()) {
+            if (method.getName().equals("parseSkybox") && method.getParameterCount() == 2) {
+                return method.invoke(api, id, json);
+            }
+        }
+        throw new NoSuchMethodException("Nuit.parseSkybox");
+    }
+    private Object parse(Object api, JsonObject json) throws Exception {
+        for (Method method : api.getClass().getMethods()) {
+            if (method.getName().equals("parseSkybox") && method.getParameterCount() == 2) {
+                return method.invoke(api, SKY_ID, json);
+            }
+        }
+        throw new NoSuchMethodException("Nuit.parseSkybox");
+    }
+    private static Object api() {
+        try {
+            Class<?> cls = Class.forName("me.flashyreese.mods.nuit.api.NuitApi");
+            return cls.getMethod("getInstance").invoke(null);
+        } catch (ReflectiveOperationException | LinkageError e) { return null; }
+    }
+    private static void unregister(Object api) {
+        try {
+            for (Method m : api.getClass().getMethods()) {
+                if (m.getName().equals("removePermanentSkybox") && m.getParameterCount() == 1) {
+                    m.invoke(api, SKY_ID);
+                    m.invoke(api, STARS_ID);
+                    m.invoke(api, GLOW_ID);
+                    return;
+                }
+            }
+        } catch (ReflectiveOperationException e) {
+            System.err.println("[Drainer] Could not remove previous sky: " + e);
+        }
+    }
+    private static void unregister() { Object a = api(); if (a != null) unregister(a); }
+    private static String filename(String name) {
+        return switch (name) {
+            case "Pink Nebula" -> "pink_nebula";
+            case "Galaxy Prime" -> "galaxy_prime";
+            case "Galaxxy Sky" -> "galaxxy_sky";
+            case "Sky V1" -> "sky_v1";
+            case "Better Sky" -> "better_sky";
+            default -> "galaxy_sky";
+        };
+    }
+    public boolean active() { return enabled; } // Sky ownership is controlled by Nuit, not the old claimSky mixin.
+    public boolean vanillaClouds() { return !enabled || showClouds.get(); }
+    public boolean hideVanillaSun() { return enabled && hideSun.get(); }
+    public boolean hideVanillaMoon() { return enabled && hideMoon.get(); }
+    @Override public void onRender3D(WorldRenderContext ctx, PoseStack stack) {
+        if (!enabled || mc.level == null || !sky.get().startsWith("GPU ")) return;
+        if (fixedObjectSky(sky.get())) {
+            // Capture THREE FIXED WORLD landmarks at the moment the test starts.
+            // They never receive the player's position again until you disable
+            // and re-enable SkyShader, change worlds, or leave the test mode.
+            if (!anchorReady || anchorWorld != mc.level) {
+                var cameraPos = mc.gameRenderer.mainCamera().position();
+                var look = mc.player != null ? mc.player.getLookAngle() : new net.minecraft.world.phys.Vec3(0, 0, 1);
+                anchorX = cameraPos.x + look.x * 230.0;
+                anchorY = Math.max(cameraPos.y + 85.0, cameraPos.y + look.y * 230.0 + 55.0);
+                anchorZ = cameraPos.z + look.z * 230.0;
+                anchorWorld = mc.level;
+                anchorReady = true;
+            }
+            float seconds = (float) ((System.nanoTime() / 1_000_000_000.0) % 36000.0);
+            if (spaceMode(sky.get()) >= 0) {
+                com.lovenote.util.SkySpaceCollectionRenderer.draw(
+                    mc.gameRenderer.mainCamera(), stack, seconds * gpuSpeed.getF(),
+                    spaceMode(sky.get()), gpuDetail.getI(), gpuSpaceMotion.getF(), gpuMeteorRate.getF(),
+                    (float) anchorX, (float) anchorY, (float) anchorZ,
+                    gpuHueA.getF(), gpuHueB.getF(), gpuSaturation.getF(), gpuBrightness.getF(),
+                    gpuScale.getF(), gpuDensity.getF());
+            } else if (sky.get().equals("GPU Ringed Planet")) {
+                com.lovenote.util.SkyPlanetRenderer.draw(
+                    mc.gameRenderer.mainCamera(), stack, seconds * gpuSpeed.getF(),
+                    (float) anchorX, (float) anchorY, (float) anchorZ,
+                    gpuHueA.getF(), gpuHueB.getF(), gpuSaturation.getF(), gpuBrightness.getF(),
+                    gpuScale.getF(), gpuDensity.getF());
+            } else {
+                com.lovenote.util.SkyAnchorProbeRenderer.draw(
+                    mc.gameRenderer.mainCamera(), stack, seconds * gpuSpeed.getF(),
+                    (float) anchorX, (float) anchorY, (float) anchorZ,
+                    gpuHueA.getF(), gpuHueB.getF(), gpuSaturation.getF(), gpuBrightness.getF());
+            }
+            return;
+        }
+        int mode = switch (sky.get()) {
+            case "GPU Ocean" -> 1;
+            case "GPU Water" -> 2;
+            case "GPU Nebula" -> 3;
+            case "GPU Aurora" -> 4;
+            default -> 0;
+        };
+        float seconds = (float) ((System.nanoTime() / 1_000_000_000.0) % 36000.0);
+        com.lovenote.util.PolarGpuSkyRenderer.draw(
+            mc.gameRenderer.mainCamera(), stack, seconds * gpuSpeed.getF(), mode,
+            gpuScale.getF(), gpuBrightness.getF(), gpuDetail.getF(), gpuDensity.getF(),
+            gpuHueA.getF(), gpuHueB.getF(), gpuSaturation.getF());
+    }
 }

@@ -1,0 +1,9 @@
+﻿Imported source artwork into Drainer JAR assets. No external pack installation.
+Licensed MIT as reported by Modrinth API when fetched; retain original creator notices when distributing.
+The sky artwork is static; Drainer provides Nuit rotation. These are NOT independently animated skies.
+Drainer V57 import manifest:
+Galaxy Sky | 1.0.0 | https://cdn.modrinth.com/data/1p2uBjwf/versions/PpzBxTv8/Galaxy%20sky.zip
+Pink Nebula | 1.0.0 | https://cdn.modrinth.com/data/3Lqmqg2o/versions/bRNp6r29/Pink%20Nebula.zip
+Galaxy Prime | 1.0.0 | https://cdn.modrinth.com/data/8RJ7kY8q/versions/MoZfDZzA/Galaxy%20Prime.zip
+Galaxxy Sky | 1.0.0 | https://cdn.modrinth.com/data/WXisUd6o/versions/wMlAhRRe/Galaxxy%20Sky.zip
+Sky V1 | 1 | https://cdn.modrinth.com/data/tr5bno27/versions/XxGoMzh5/%21%20%20%20%20%20%20%20%20%20%20%20%20%20%C2%A7bS%C2%A7fky%20%C2%A77v1.zip

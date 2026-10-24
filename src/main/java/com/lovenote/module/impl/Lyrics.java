@@ -34,6 +34,8 @@ import java.util.concurrent.TimeUnit;
 
 /** Stable, uniformly scaled LRCLIB lyric widget. Word timing is estimated from line timing. */
 public final class Lyrics extends Module {
+    private static Lyrics instance;
+    public static Lyrics instance() { return instance; }
     private final NumberSetting x = add(new NumberSetting("X", .66, 0, .98, .005));
     private final NumberSetting y = add(new NumberSetting("Y", .75, 0, .98, .005));
     private final NumberSetting scale = add(new NumberSetting("Scale", .95, .25, 1.6, .05));
@@ -70,7 +72,7 @@ public final class Lyrics extends Module {
     private static final ThreadPoolExecutor LYRICS_WORKER = new ThreadPoolExecutor(
         1, 1, 0L, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(1),
         r -> { Thread t = new Thread(r, "Drainer-Lyrics"); t.setDaemon(true); return t; },
-        new ThreadPoolExecutor.DiscardOldestPolicy());
+        new ThreadPoolExecutor.AbortPolicy());
     private record Line(long ms, String text) {}
     private int px, py, w, h;
     private boolean dragging;
@@ -78,6 +80,7 @@ public final class Lyrics extends Module {
 
     public Lyrics() {
         super("Lyrics", Category.SPOTIFY);
+        instance = this;
         describe("LRCLIB line-synced lyrics with estimated word highlighting; adjust Timing offset for your bridge.");
     }
     @Override public void onEnable() { SpotifyManager.I.start(); }
@@ -85,11 +88,12 @@ public final class Lyrics extends Module {
         return ms > 0 ? Math.round(ms / 5000.0) : 0L;
     }
     private boolean isCurrent(String key, long generation) {
-        return enabled && generation == lyricGeneration && key.equals(track);
+        return (enabled || SpotifyHud.isIntegratedLyricsActive())
+            && generation == lyricGeneration && key.equals(track);
     }
     @Override public void onTick() {
         SpotifyManager m = SpotifyManager.I;
-        if (!enabled) return;
+        if (!enabled && !SpotifyHud.isIntegratedLyricsActive()) return;
         if (!m.hasTrack) {
             if (!track.isEmpty()) lyricGeneration++;
             track = ""; trackDurationBucket = -1L;
@@ -134,10 +138,16 @@ public final class Lyrics extends Module {
                 fetchStartedNanos = System.nanoTime();
                 String title=m.title, artist=m.artist;
                 long generation=lyricGeneration;
-                LYRICS_WORKER.execute(() -> {
-                    try { loadPlainFallback(key,title,artist,generation); }
-                    finally { if (isCurrent(key,generation)) fetchInProgress=false; }
-                });
+                try {
+                    LYRICS_WORKER.execute(() -> {
+                        try { loadPlainFallback(key,title,artist,generation); }
+                        finally { if (isCurrent(key,generation)) fetchInProgress=false; }
+                    });
+                } catch (java.util.concurrent.RejectedExecutionException busy) {
+                    fetchInProgress=false;
+                    fallbackAttempted=false;
+                    nextRetryAt=System.currentTimeMillis()+1500;
+                }
             }
             return;
         }
@@ -149,11 +159,22 @@ public final class Lyrics extends Module {
         String title=m.title,artist=m.artist;
         long duration=m.durationMs;
         long generation = lyricGeneration;
-        LYRICS_WORKER.execute(() -> {
-            try {
-                if (isCurrent(key, generation)) fetch(key,title,artist,duration,generation);
-            } finally { if (isCurrent(key,generation)) fetchInProgress=false; }
-        });
+        try {
+            LYRICS_WORKER.execute(() -> {
+                try {
+                    if (isCurrent(key, generation)) fetch(key,title,artist,duration,generation);
+                } finally { if (isCurrent(key,generation)) fetchInProgress=false; }
+            });
+        } catch (java.util.concurrent.RejectedExecutionException busy) {
+            // Rapid track skipping can saturate the worker. Retry promptly instead
+            // of leaving the lyrics window blank for the old 30-second watchdog.
+            fetchInProgress=false;
+            nextRetryAt=System.currentTimeMillis()+1500;
+        }
+    }
+    /** Let SpotifyHud drive lyric updates when Lyrics Only is not enabled. */
+    public void refreshForEmbedded() {
+        if (SpotifyHud.isIntegratedLyricsActive() && !enabled) onTick();
     }
     private static Path plainCachePath(String key) throws Exception {
         byte[] hash=MessageDigest.getInstance("SHA-256").digest(key.getBytes(StandardCharsets.UTF_8));
@@ -209,6 +230,37 @@ public final class Lyrics extends Module {
     private static String norm(String s) {
         return s == null ? "" : s.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]", "");
     }
+    /** A similarly named remix/live recording may have completely different timings.
+     *  Prefer no timed lyrics to visibly incorrect lyrics from another track.
+     *  Prefixes support providers omitting collaborators or version suffixes.
+     */
+    private static boolean titleCompatible(String expected, String found) {
+        String a = norm(expected), b = norm(found);
+        return !a.isEmpty() && !b.isEmpty() && (a.equals(b)
+            || (a.length() >= 8 && b.startsWith(a))
+            || (b.length() >= 8 && a.startsWith(b)));
+    }
+    private static boolean artistCompatible(String expected, String found) {
+        String a = norm(expected), b = norm(found);
+        return !a.isEmpty() && !b.isEmpty() && (a.equals(b)
+            || (a.length() >= 4 && b.startsWith(a))
+            || (b.length() >= 4 && a.startsWith(b)));
+    }
+    private static boolean durationCompatible(long expected, JsonObject candidate) {
+        if (expected <= 0 || !candidate.has("duration") || candidate.get("duration").isJsonNull()) return true;
+        return Math.abs(expected / 1000.0 - candidate.get("duration").getAsDouble()) <= 8.0;
+    }
+    /** LRCLIB plainLyrics has no timestamps; keep real line order without faking sync. */
+    private static List<String> parsePlain(String raw) {
+        if (raw == null || raw.isBlank()) return List.of();
+        List<String> output = new ArrayList<>();
+        for (String row : raw.split("\\R")) {
+            String clean = row.strip();
+            if (!clean.isEmpty() && clean.length() <= 300) output.add(clean);
+            if (output.size() >= 160) break;
+        }
+        return output;
+    }
     private static List<Line> parse(String raw) {
         List<Line> out = new ArrayList<>();
         for (String row : raw.split("\\R")) {
@@ -253,7 +305,7 @@ public final class Lyrics extends Module {
         // Rounding prevents a minor bridge duration change from creating duplicate cache keys.
         long seconds = Math.max(0L, Math.round(duration / 5000.0) * 5);
         byte[] sha = MessageDigest.getInstance("SHA-256").digest(
-            (key + "|" + seconds).getBytes(StandardCharsets.UTF_8));
+            ("v31.2-verified|" + key + "|" + seconds).getBytes(StandardCharsets.UTF_8));
         StringBuilder name = new StringBuilder();
         for (byte b : sha) name.append(String.format(Locale.ROOT, "%02x", b & 0xff));
         return FabricLoader.getInstance().getConfigDir().resolve("drainer-lyrics-cache")
@@ -309,13 +361,30 @@ public final class Lyrics extends Module {
             if(http==429 || http>=500){providerBackoff(key,generation,http,response);return ExactResult.RETRY_LATER;}
             if(http!=200)return ExactResult.NOT_FOUND;
             JsonObject o=JsonParser.parseString(response.body()).getAsJsonObject();
-            if(!o.has("syncedLyrics") || o.get("syncedLyrics").isJsonNull())return ExactResult.NOT_FOUND;
+            // A nominally exact API response can still describe a different
+            // version or collaborator. Never cache mismatched timestamps.
+            if (o.has("trackName") && !titleCompatible(title, o.get("trackName").getAsString()))
+                return ExactResult.NOT_FOUND;
+            if (o.has("artistName") && !artistCompatible(artist, o.get("artistName").getAsString()))
+                return ExactResult.NOT_FOUND;
+            if (!durationCompatible(duration, o)) return ExactResult.NOT_FOUND;
+            if(!o.has("syncedLyrics") || o.get("syncedLyrics").isJsonNull()) {
+                if (isCurrent(key,generation) && o.has("plainLyrics")
+                    && !o.get("plainLyrics").isJsonNull()) {
+                    List<String> plain = parsePlain(o.get("plainLyrics").getAsString());
+                    if (!plain.isEmpty()) {
+                        plainLines=List.copyOf(plain);
+                        savePlainCached(key,plain);
+                        status="Plain lyrics (no timestamps)";
+                    }
+                }
+                return ExactResult.NOT_FOUND;
+            }
             String raw=o.get("syncedLyrics").getAsString();
             List<Line> result=parse(raw);
             if(result.isEmpty()||!isCurrent(key,generation))return ExactResult.NOT_FOUND;
-            if(duration>0 && o.has("duration") && !o.get("duration").isJsonNull()
-                && Math.abs(duration/1000.0-o.get("duration").getAsDouble())>18)return ExactResult.NOT_FOUND;
-            lines=List.copyOf(result);status="";
+
+            lines=List.copyOf(result);plainLines=List.of();status="";
             saveCached(key,duration,raw);
             return ExactResult.FOUND;
         } catch(Exception ignored){return ExactResult.NOT_FOUND;}
@@ -352,15 +421,20 @@ public final class Lyrics extends Module {
             }
             var arr = JsonParser.parseString(response.body()).getAsJsonArray();
             List<Line> best = List.of(); String bestRaw = "";
+            List<String> bestPlain = List.of(); double bestPlainScore = Double.MAX_VALUE;
             double bestScore = Double.MAX_VALUE;
             for (var element : arr) {
                 JsonObject o = element.getAsJsonObject();
-                if (!o.has("syncedLyrics") || o.get("syncedLyrics").isJsonNull()) continue;
-                String candidateRaw = o.get("syncedLyrics").getAsString();
+                String candidateRaw = o.has("syncedLyrics") && !o.get("syncedLyrics").isJsonNull()
+                    ? o.get("syncedLyrics").getAsString() : "";
                 List<Line> parsed = parse(candidateRaw);
-                if (parsed.isEmpty()) continue;
+                List<String> plainCandidate = o.has("plainLyrics") && !o.get("plainLyrics").isJsonNull()
+                    ? parsePlain(o.get("plainLyrics").getAsString()) : List.of();
+                if (parsed.isEmpty() && plainCandidate.isEmpty()) continue;
                 String candidateTitle = o.has("trackName") ? o.get("trackName").getAsString() : "";
                 String candidateArtist = o.has("artistName") ? o.get("artistName").getAsString() : "";
+                if (!titleCompatible(title, candidateTitle) || !artistCompatible(artist, candidateArtist)
+                    || !durationCompatible(duration, o)) continue;
                 double score = 0;
                 if (!norm(title).equals(norm(candidateTitle))) score += 50;
                 if (!norm(artist).equals(norm(candidateArtist))) score += 25;
@@ -368,19 +442,27 @@ public final class Lyrics extends Module {
                     double diff = Math.abs(duration / 1000.0 - o.get("duration").getAsDouble());
                     score += diff > 8 ? 100 + diff : diff;
                 }
-                if (duration > 0 && o.has("duration") && !o.get("duration").isJsonNull()
-                    && Math.abs(duration / 1000.0 - o.get("duration").getAsDouble()) > 18) continue;
-                if (score < bestScore) { bestScore = score; best = parsed; bestRaw = candidateRaw; }
+
+                if (!parsed.isEmpty() && score < bestScore) { bestScore = score; best = parsed; bestRaw = candidateRaw; }
+                if (!plainCandidate.isEmpty() && score < bestPlainScore) {
+                    bestPlainScore = score; bestPlain = plainCandidate;
+                }
             }
             if (isCurrent(key,generation)) {
                 lines = List.copyOf(best);
-                status = best.isEmpty() ? "No timed lyrics found for this track" : "";
+                if (!best.isEmpty()) plainLines = List.of();
+                if (best.isEmpty() && !bestPlain.isEmpty()) {
+                    plainLines = List.copyOf(bestPlain);
+                    savePlainCached(key,bestPlain);
+                }
+                status = best.isEmpty() ? (plainLines.isEmpty()
+                    ? "No lyrics found for this recording" : "Plain lyrics (no timestamps)") : "";
                 if (best.isEmpty()) nextRetryAt = System.currentTimeMillis() + 90_000L;
                 else saveCached(key, duration, bestRaw);
             }
             if(best.isEmpty() && !fallbackAttempted && isCurrent(key,generation)) {
                 fallbackAttempted=true;
-                loadPlainFallback(key,title,artist,generation);
+                if (plainLines.isEmpty()) loadPlainFallback(key,title,artist,generation);
             }
         } catch (Exception ex) {
             if (isCurrent(key,generation)) {
@@ -437,7 +519,63 @@ public final class Lyrics extends Module {
         }
         if(split<s.length()) Ui.text(g,s.substring(split),cursor,textY,HudGlass.muted());
     }
+    /**
+     * Draw the currently cached lyric lines inside SpotifyHud's pose.
+     * No second track title, no network work in rendering, and no invented timings.
+     */
+    public void renderEmbedded(GuiGraphicsExtractor g, int x, int y, int width, int height) {
+        SpotifyManager m = SpotifyManager.I;
+        Ui.text(g,"LYRICS",x+2,y,HudGlass.accent());
+        boolean matching = m.hasTrack && track.equals(m.title + "|" + m.artist)
+            && trackDurationBucket == durationBucket(m.durationMs);
+        if (!m.hasTrack) {
+            Ui.text(g,"Play music to view lyrics",x+2,y+42,HudGlass.muted());
+            return;
+        }
+        boolean ended = !m.playing && m.durationMs > 0 && m.progress() >= m.durationMs-180;
+        if (ended) {
+            Ui.text(g,"Playback finished",x+2,y+42,HudGlass.muted());
+            return;
+        }
+        List<Line> timed = matching ? lines : List.of();
+        List<String> plain = matching ? plainLines : List.of();
+        int maxWidth = Math.max(30,width-6);
+        if (!timed.isEmpty()) {
+            long position = Math.max(0,m.progress()+timingOffset.getI());
+            int current = -1;
+            for (int i=0;i<timed.size();i++) {
+                if (timed.get(i).ms<=position) current=i;
+                else break;
+            }
+            if (current<0) {
+                Ui.text(g,"Waiting for first lyric...",x+2,y+42,HudGlass.muted());
+                return;
+            }
+            long start = timed.get(current).ms;
+            long next = current+1 < timed.size() ? timed.get(current+1).ms
+                : Math.max(start+3000,m.durationMs);
+            long holdEnd = start+maxHold.getI();
+            if (current>0) Ui.text(g,fit(timed.get(current-1).text,maxWidth),x+2,y+24,HudGlass.muted());
+            if (position>holdEnd) Ui.text(g,"♫",x+2,y+44,HudGlass.accent());
+            else drawWords(g,timed.get(current),start,Math.min(next,holdEnd),position,
+                x+2,y+44,maxWidth);
+            if (current+1<timed.size()) Ui.text(g,fit(timed.get(current+1).text,maxWidth),x+2,y+64,HudGlass.muted());
+        } else if (!plain.isEmpty()) {
+            Ui.text(g,"PLAIN · NOT SYNCED",x+width-Ui.textW("PLAIN · NOT SYNCED")-4,
+                y,HudGlass.muted());
+            // Untimed lyrics are a text preview, not a fabricated karaoke timeline.
+            int idx = 0;
+            if (idx>0) Ui.text(g,fit(plain.get(idx-1),maxWidth),x+2,y+24,HudGlass.muted());
+            Ui.text(g,fit(plain.get(idx),maxWidth),x+2,y+44,HudGlass.text());
+            if(idx+1<plain.size()) Ui.text(g,fit(plain.get(idx+1),maxWidth),x+2,y+64,HudGlass.muted());
+        } else {
+            Ui.text(g,fit(matching ? status : "Finding synced lyrics...",maxWidth),
+                x+2,y+42,HudGlass.muted());
+        }
+    }
+
     @Override public void onHud(GuiGraphicsExtractor g, float delta) {
+        if (SpotifyHud.isIntegratedLyricsActive()) return; // Prevent duplicate floating music panels.
         SpotifyManager m = SpotifyManager.I;
         // Media sessions commonly retain track metadata after the player has
         // stopped at the end. Do not leave the final lyric onscreen indefinitely.
@@ -473,8 +611,8 @@ public final class Lyrics extends Module {
         int activeY=single?60:88;
         int limit=bw-27;
         if(ls.isEmpty() && !pl.isEmpty()) {
-            long duration=Math.max(1L,m.durationMs);
-            int idx=(int)Math.min(pl.size()-1,Math.max(0L,m.progress()*pl.size()/duration));
+            // Never fake timing for plain lyrics; leave manual/timed providers in charge.
+            int idx = 0;
             if(!single && idx>0)
                 Ui.text(g,fit(pl.get(idx-1),limit),14,65,HudGlass.muted());
             Ui.text(g,fit(pl.get(idx),limit),14,activeY,HudGlass.text());
